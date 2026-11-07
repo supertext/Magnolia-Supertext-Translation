@@ -96,3 +96,7 @@ The dialog, the messages and the Supertext app follow your AdminCentral interfac
 | *Supertext doesn’t offer the option politeness for …* | Formal/informal address isn’t available for that language. Ask your administrator to set *Form of address* to *Automatic*. |
 | *No Supertext API key configured* / *Authentication failed* | Ask your administrator to check the Supertext app. The dialog stays open; nothing was changed. |
 | *Translate into* is marked red | Pick at least one language. |
+
+## Support
+
+Questions, problems or ideas: use the [Supertext support form](https://integrations.supertext.com/en/support?platform=magnolia). Mention the version of Magnolia and of the plugin, what you did and what you expected; an error message helps a lot. You get an answer by email, in your language.

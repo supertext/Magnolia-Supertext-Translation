@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Requests to Supertext name the module and its version in the User-Agent (`Magnolia-Supertext-Translation/<version>`, was `Supertext-Magnolia/<version>`).
 
 - Export for translation (XLIFF 1.2 or HTML) and import of translated files; Supertext SDK 0.5.0. Two new actions in the Pages app: *Export for translation* downloads a page's texts for the ticked languages (HTML: one), *Import translation* uploads the translated file (at most 10 MB) and writes the texts into the page's languages with the same rules as *Translate with Supertext* (existing translations kept unless *Overwrite*), with a summary (imported, skipped because the source changed, untranslated, formatting changed, not in the file). Texts whose source changed since the export are only imported on request. English, German, French, Italian.
+- Support: the Supertext support form is linked in the README, the user guide and GitHub's "New issue" page.
 
 ### Changed
 

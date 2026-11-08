@@ -197,7 +197,7 @@ New texts in the sample: run the stand-in with `STAND_IN_DUMP=<dir>` and transla
 
 ## Demo (Railway)
 
-The public demo is a container built from `demo/Dockerfile`: Magnolia 6.4.11 Community Edition on Tomcat 11 / Java 21, a small demo module (site *supertext* with English, German, French and Italian (Switzerland), a page template with *Text* and *Quote* components, the sample page `/supertext-demo`) and this module. It runs on Railway in the `supertext-cms-demos` project, service `magnolia`, region EU West (Amsterdam): <https://magnolia-production-2b73.up.railway.app/> (AdminCentral at `/.magnolia/admincentral`, sign in with the e-mail address).
+The public demo is a container built from `demo/Dockerfile`: Magnolia 6.4.11-sp1 Community Edition on Tomcat 11 / Java 21, a small demo module (site *supertext* with English, German, French and Italian (Switzerland), a page template with *Text* and *Quote* components, the sample page `/supertext-demo`) and this module. It runs on Railway in the `supertext-cms-demos` project, service `magnolia`, region EU West (Amsterdam): <https://magnolia-production-2b73.up.railway.app/> (AdminCentral at `/.magnolia/admincentral`, sign in with the e-mail address).
 
 **Deploys:** Railway watches `main` and rebuilds on every push.
 
@@ -264,4 +264,4 @@ The module is not on Maven Central; the installation guide explains how to insta
 - The stored API key is plain text in the config workspace (superuser-only by default); prefer `SUPERTEXT_API_KEY` in production.
 - No sync of later source changes; translate again (with *Overwrite*) to refresh a language. With *Translation review*, reviewers' corrections (and a translation memory) come from the review service, but reach Magnolia only with the next translation (no push).
 - Human (professional) translation orders are not supported yet.
-- Tested on Magnolia 6.4.10 and 6.4.11 CE with the stand-in API; not yet against the live API.
+- Tested on Magnolia 6.4.10 and 6.4.11 (6.4.11-sp1) CE with the stand-in API; not yet against the live API.

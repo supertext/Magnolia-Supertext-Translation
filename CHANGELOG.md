@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Changed
 
+- Tested with Magnolia 6.4.11-sp1 Community Edition (the demo now runs it).
 - **Language codes: a combo box per site language.** The Supertext app lists every site language (main language included) with a combo box of Supertext's target languages (*German (Switzerland) (de-CH)*), preselected with the stored choice, else the same code, else Supertext's default (`de` → `de-DE`, `zh_TW` → `zh-Hant`, `es_ES` → `es`); languages without a default (`en_IE`, `de_LI`, `gsw`) show *— choose —*. Only codes from the list can be saved. The old text field (`de=de-CH` per line) is moved into the combo boxes at the first start, so nothing configured is lost. The *unsupported language* message says where to choose the code. English, German, French, Italian.
 - The module now talks to Supertext through the [Supertext Java SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) 0.3.0, bundled in the module's jar: still one jar to install, no new libraries. Same protocol, retries and settings as before.
 - A language without a *Language codes* line now uses Supertext's obvious default (Supertext SDK 0.4.0): `de` → `de-DE`, `en` → `en-US`, `fr` → `fr-FR`, `it` → `it-IT`, `pt` → `pt-PT`, `zh_CN` → `zh-Hans`, `es_ES` → `es`; the Supertext app shows it as *Supertext default*. Languages without an obvious default (`en_IE`, `de_LI`, `gsw` …) still need a line.

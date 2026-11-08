@@ -4,7 +4,7 @@ For administrators who install and configure the module.
 
 ## Requirements
 
-- Magnolia **6.4** (tested with 6.4.10 and 6.4.11 Community Edition; DX Core works the same way), which runs on Java 17 or 21 and a Jakarta servlet container such as Tomcat 11.
+- Magnolia **6.4** (tested with 6.4.10 and 6.4.11 (6.4.11-sp1) Community Edition; DX Core works the same way), which runs on Java 17 or 21 and a Jakarta servlet container such as Tomcat 11.
 - The standard modules *Pages app* (`pages-app`) and *Site* (`site`). Every Magnolia bundle has them.
 - A site with more than one language (see [Language setup](#language-setup)).
 - A Supertext account with an API key for AI translation (see [API key](#api-key)).

@@ -195,6 +195,29 @@ The settings screenshot leaves out the ping address line (`.supertext-ping`), wh
 
 New texts in the sample: run the stand-in with `STAND_IN_DUMP=<dir>` and translate what it writes to `<dir>/de-CH.json` into `sample-de.json`. Avoid the *Definitions* app in scripts: in Magnolia 6.4.10 it sends a message without a type, which breaks AdminCentral's banner and leaves error notifications behind.
 
+## Demo movie
+
+`docs/images/demo.gif` (shown at the top of the README) is recorded by `tools/docs/movie.mjs` with Supertext's movie kit (`tools/docs/movie/`: Playwright screencast → ffmpeg; intro and outro cards, captions, cursor; Inter font under the SIL Open Font License in `movie/assets/fonts/`). It needs the demo and the stand-in set up like for the screenshots (the stand-in **without** `STAND_IN_PREFIX`, so the German result is real German), `ffmpeg` and, for the voice, Piper:
+
+```bash
+pip install piper-tts                       # the voice; without it (or with MOVIE_VOICE=0) the movie is silent
+cd tools/docs && npm install && node stand-in.mjs &
+# demo with SUPERTEXT_API_ENDPOINT pointing at the stand-in and an API key stored (e.g. after the install movie)
+DEMO_URL=http://localhost:8080 DEMO_EDITOR_EMAIL=… DEMO_EDITOR_PASSWORD=… npm run movie
+```
+
+The demo editor opens the sample page in the page editor (English), clicks *Translate with Supertext* in the action bar, ticks *German (Switzerland) · de_CH*, clicks *Translate* (the waiting time is cut), and switches the page editor's language selector to German. The script writes the GIF (800 px, 12 fps, keep it under 3 MB) to `docs/images/demo.gif` and the MP4 to `tools/docs/movie/out/Magnolia-Supertext-Translation.mp4` (git-ignored; `MOVIE_OUT` changes the path). The MP4 is not committed; the GIF is silent. The voice model (63 MB, pinned revision, checked by SHA-256) is downloaded once into `tools/docs/movie/voice-cache/` (git-ignored, never committed); the time spent generating speech is cut from the movie. Re-record it when the translate dialog or the page editor's action bar changes.
+
+**Install and configuration movie** (`tools/docs/movie-install.mjs`, `npm run movie:install`): the same kit, voice and look, for administrators. It needs a **fresh** demo started like for the screenshots, without `SUPERTEXT_API_KEY` (the script types the made-up key `st-demo-0000-0000-0000` into the Supertext app; the stand-in accepts any key), signed in as the demo **administrator**:
+
+```bash
+DEMO_URL=http://localhost:8080 DEMO_ADMIN_EMAIL=… DEMO_ADMIN_PASSWORD=… npm run movie:install
+```
+
+A terminal (`kit.terminal()`) with the steps from `docs/INSTALLATION.md` (`mvn install:install-file` with the release jar, the dependency in the webapp's `pom.xml`, `mvn package`, the module's installation in the log, the site definition's `i18n` languages; output shortened), then AdminCentral: app launcher → *Translation* → *Supertext*, where the key comes from (supertext.com → Integrations → API; create an account at supertext.com), the fake key in *API key*, *Language codes* (de_CH kept as *German (Switzerland) (de-CH)*, *Translation review* left off), *Save* with the API key check (*the connection to Supertext works*), and *Translate with Supertext* in the Pages app. The ping address line (the demo's local URL) is removed from the page before it is shown. No GIF; the MP4 goes to `tools/docs/movie/out/Magnolia-Supertext-Translation-install.mp4` (git-ignored, not committed; `MOVIE_OUT` changes the path). Record it before the demo movie on the same fresh demo (it stores the key the demo movie needs). Re-record it when the installation steps or the Supertext app change. Don't wait for network idle in these scripts (Vaadin's push connection stays open) and don't open the *Definitions* app.
+
+Voice: Piper voice “alba” (en_GB), trained on a dataset from the University of Edinburgh's Centre for Speech Technology Research, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+
 ## Demo (Railway)
 
 The public demo is a container built from `demo/Dockerfile`: Magnolia 6.4.11-sp1 Community Edition on Tomcat 11 / Java 21, a small demo module (site *supertext* with English, German, French and Italian (Switzerland), a page template with *Text* and *Quote* components, the sample page `/supertext-demo`) and this module. It runs on Railway in the `supertext-cms-demos` project, service `magnolia`, region EU West (Amsterdam): <https://magnolia-production-2b73.up.railway.app/> (AdminCentral at `/.magnolia/admincentral`, sign in with the e-mail address).

@@ -2,6 +2,8 @@
 
 Translate Magnolia pages into the other languages of their site with [Supertext](https://www.supertext.com) AI translation.
 
+![Demo: an editor opens a page in Magnolia's page editor, clicks Translate with Supertext, ticks German (Switzerland), clicks Translate and switches the editor to the German version](docs/images/demo.gif)
+
 - **Translate with Supertext**: an action in the Pages app (page list and page editor) translates a page, its areas and components, and optionally its subpages, into the languages you tick. Existing translations are kept unless you choose to overwrite them.
 - Translates every text and rich text field marked `i18n: true` in the page's and components' dialogs, composite fields included. Formatting and links stay intact. Translations are saved in the page's language versions (`title_de_CH` …), ready to review in the page editor and publish.
 - **Export for translation / Import translation**: two more actions in the Pages app download a page's texts as an XLIFF 1.2 or HTML file for a translator, a translation tool or Supertext's web app, and import the translated file.

@@ -73,6 +73,8 @@ Every demo must be usable right after deployment, without anyone registering in 
 
 The user guide and installation guide of every plugin include screenshots of the real UI: at least the translate action before and after translating, a translated result, the overwrite or retranslate warning if there is one, the plugin's settings or configuration screen, and the CMS's language setup. Screenshots are taken from the repo's own demo with the headless browser, by a committed script (e.g. `npm run docs:screenshots`), against a stand-in API that returns real translations for the sample content, so the guides never show placeholder text. Use no real customer data, no secrets, no local URLs (show the live API endpoint). Keep the images small (1× scale, cropped to the relevant part), store them in `docs/images/`, give each one descriptive alt text, and regenerate them in the same commit whenever the UI they show changes.
 
+Demo movie: `npm run movie` (`tools/docs/movie.mjs` with the movie kit in `tools/docs/movie/`) records `docs/images/demo.gif` (shown in the README) and an MP4 that isn't committed; `npm run movie:install` (`tools/docs/movie-install.mjs`, same kit) records the install and configuration movie (MP4 only, not committed); see `docs/DEVELOPER.md` → *Demo movie*.
+
 ## Shared Supertext protocol
 
 AI file translation API v1, same as the WordPress plugin: POST HTML file → poll status → GET translation → DELETE. Details in `docs/DEVELOPER.md`. Never commit API keys; use the `SUPERTEXT_API_KEY` environment variable or the CMS's settings.

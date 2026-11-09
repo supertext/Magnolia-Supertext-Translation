@@ -1,0 +1,32 @@
+# "Import translation" dialog, opened from the Pages app (see
+# decorations/pages-app/apps/pages-app.yaml). Not bound to the page (populate: false): the commit
+# action reads the uploaded file (at most 10 MB) and writes the translations into the pages it names.
+label: supertext-translation.import.label
+form:
+  properties:
+    intro:
+      $type: staticField
+      label: ""
+      value: supertext-translation.import.intro
+    file:
+      $type: uploadField
+      label: supertext-translation.import.file.label
+      required: true
+      maxUploadSize: 10485760
+    includeChanged:
+      $type: checkBoxField
+      label: supertext-translation.import.includeChanged.label
+      buttonLabel: supertext-translation.import.includeChanged.buttonLabel
+      defaultValue: false
+    overwrite:
+      $type: checkBoxField
+      label: supertext-translation.dialog.overwrite.label
+      buttonLabel: supertext-translation.dialog.overwrite.buttonLabel
+      defaultValue: false
+actions:
+  cancel:
+    label: supertext-translation.dialog.cancel
+    $type: closeAction
+  commit:
+    label: supertext-translation.import.commit
+    class: com.supertext.magnolia.translation.ui.ImportTranslationActionDefinition

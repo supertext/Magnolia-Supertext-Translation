@@ -33,8 +33,9 @@ DEST="$ROOT/lib/supertext-sdk"
 PKG_DIR="com/supertext/magnolia/translation/internal/sdk"
 rm -rf "$DEST"
 mkdir -p "$DEST/src/$PKG_DIR"
-# Version-neutral parts (SdkInfo, Transport, JdkHttpTransport) and API v1 in the subpackage v1 (since SDK 0.2.0).
-for sub in "" v1; do
+# Version-neutral parts (SdkInfo, Transport, JdkHttpTransport), API v1 in the subpackage v1 (since SDK 0.2.0)
+# and translation files in the subpackage files (since SDK 0.5.0).
+for sub in "" v1 files; do
     if [ -d "$SRC/sdk/java/src/main/java/com/supertext/sdk/$sub" ]; then
         mkdir -p "$DEST/src/$PKG_DIR/$sub"
         cp "$SRC"/sdk/java/src/main/java/com/supertext/sdk/$sub/*.java "$DEST/src/$PKG_DIR/$sub/"
@@ -48,7 +49,7 @@ cat > "$DEST/README.md" <<EOT
 # Supertext SDK (bundled copy)
 
 Java part of the [Supertext SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide),
-version $VERSION, commit \`$COMMIT\`, package \`com.supertext.magnolia.translation.internal.sdk\` instead of \`com.supertext.sdk\` (API v1 in \`…internal.sdk.v1\`).
+version $VERSION, commit \`$COMMIT\`, package \`com.supertext.magnolia.translation.internal.sdk\` instead of \`com.supertext.sdk\` (API v1 in \`…internal.sdk.v1\`, translation files in \`…internal.sdk.files\`).
 Compiled into the module's jar (see \`build-helper-maven-plugin\` in \`pom.xml\`).
 
 Don't edit these files: fix the SDK in its own repository, then run \`scripts/vendor-sdk.sh\`.

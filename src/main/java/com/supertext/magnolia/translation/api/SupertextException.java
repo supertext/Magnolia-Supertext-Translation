@@ -45,6 +45,11 @@ public class SupertextException extends Exception {
         this.authenticationProblem = authenticationProblem;
     }
 
+    /** An error with a message key of the module's i18n bundle (not from Supertext), e.g. for translation files. */
+    public static SupertextException withKey(String key, String message, Object... args) {
+        return new SupertextException(key, args, "", message, false, null);
+    }
+
     /** True when the API key is missing or was rejected (the UI then shows where to get one). */
     public boolean isAuthenticationProblem() {
         return authenticationProblem;

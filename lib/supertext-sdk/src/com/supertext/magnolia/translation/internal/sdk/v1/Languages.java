@@ -1,7 +1,9 @@
 package com.supertext.magnolia.translation.internal.sdk.v1;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -9,14 +11,16 @@ import java.util.Map;
 
 /**
  * Languages of the Supertext AI file translation API v1 ({@code spec/languages.json}, from the live
- * {@code GET features}, October 2026). There is no default region and no guessing: an integration maps its
- * CMS languages to these codes; a CMS code that equals a Supertext code (apart from case and {@code _}/{@code -})
- * is used as it is, anything else is an {@link ErrorCode#UNSUPPORTED_LANGUAGE} error until the administrator
- * maps it. For the live list, use {@link SupertextClient#getFeatures()}.
+ * {@code GET features}, October 2026). An integration maps its CMS languages to these codes (a combo box per
+ * language, {@link #suggestTarget} preselected); a CMS code that equals a Supertext code (apart from case and
+ * {@code _}/{@code -}) is used as it is, a bare language Supertext offers only with a region or script gets its
+ * default ({@code de} → {@code de-DE}, see {@link #DEFAULT_TARGETS}), a region of a bare target is dropped
+ * ({@code es-ES} → {@code es}), anything else is an {@link ErrorCode#UNSUPPORTED_LANGUAGE} error until the
+ * administrator maps it. For the live list, use {@link SupertextClient#getFeatures()}.
  *
  * <pre>
  * Map&lt;String, String&gt; mapping = Map.of("de", "de-CH", "no", "nb"); // the integration's language setting
- * String target = Languages.target(cmsLocale, mapping);             // "de" → "de-CH", "fr_ch" → "fr-CH"
+ * String target = Languages.target(cmsLocale, mapping);             // "de" → "de-CH", "fr_ch" → "fr-CH", "en" → "en-US"
  * String source = Languages.source(cmsSourceLocale);                // "en-US" → "en", "" → "" (auto-detect)
  * client.translateHtml(html, target, source);
  * </pre>
@@ -94,6 +98,15 @@ public final class Languages {
             new TargetLanguage("zh-Hans", "Chinese (Simplified)", true),
             new TargetLanguage("zh-Hant", "Chinese (Traditional)", true)));
 
+    /**
+     * The default target of a bare language that Supertext offers only with a region or script. Swiss German
+     * ({@code gsw}) has none: neither dialect is the obvious one.
+     */
+    public static final Map<String, String> DEFAULT_TARGETS;
+
+    private static final Map<String, String> CHINESE_REGIONS = new LinkedHashMap<>();
+    private static final List<TargetLanguage> TARGET_OPTIONS;
+
     private static final Map<String, SourceLanguage> SOURCE_BY_KEY = new LinkedHashMap<>();
     private static final Map<String, TargetLanguage> TARGET_BY_KEY = new LinkedHashMap<>();
 
@@ -104,6 +117,23 @@ public final class Languages {
         for (TargetLanguage language : TARGETS) {
             TARGET_BY_KEY.put(key(language.getCode()), language);
         }
+        Map<String, String> defaults = new LinkedHashMap<>();
+        defaults.put("de", "de-DE");
+        defaults.put("en", "en-US");
+        defaults.put("fr", "fr-FR");
+        defaults.put("it", "it-IT");
+        defaults.put("pt", "pt-PT");
+        defaults.put("sr", "sr-Latn");
+        defaults.put("zh", "zh-Hans");
+        DEFAULT_TARGETS = Collections.unmodifiableMap(defaults);
+        CHINESE_REGIONS.put("tw", "zh-Hant");
+        CHINESE_REGIONS.put("hk", "zh-Hant");
+        CHINESE_REGIONS.put("mo", "zh-Hant");
+        CHINESE_REGIONS.put("cn", "zh-Hans");
+        CHINESE_REGIONS.put("sg", "zh-Hans");
+        List<TargetLanguage> options = new ArrayList<>(TARGETS);
+        options.sort(Comparator.comparing(TargetLanguage::getName));
+        TARGET_OPTIONS = Collections.unmodifiableList(options);
     }
 
     private Languages() {
@@ -121,6 +151,53 @@ public final class Languages {
     public static String matchTarget(String code) {
         TargetLanguage language = TARGET_BY_KEY.get(key(code));
         return language == null ? null : language.getCode();
+    }
+
+    /**
+     * The default target for a CMS code that has no exact match, else {@code null}: a bare language's
+     * {@link #DEFAULT_TARGETS} entry ({@code de} → {@code de-DE}), Chinese regions ({@code zh-TW} → {@code zh-Hant},
+     * {@code zh-CN} → {@code zh-Hans}), {@code language-Script-REGION} ({@code sr-Latn-RS} → {@code sr-Latn}) and
+     * {@code language-REGION} of a bare target ({@code es-ES} → {@code es}). Never a guessed region:
+     * {@code en-IE}, {@code de-LI} → {@code null}.
+     */
+    public static String defaultTarget(String code) {
+        String k = key(code);
+        if (k.isEmpty() || TARGET_BY_KEY.containsKey(k)) {
+            return null;
+        }
+        String[] parts = k.split("-", -1);
+        String lang = parts[0];
+        if (parts.length == 1) {
+            return DEFAULT_TARGETS.get(lang);
+        }
+        if (parts.length == 2 && lang.equals("zh")) {
+            return CHINESE_REGIONS.get(parts[1]);
+        }
+        if (parts.length == 3 && parts[1].matches("[a-z]{4}") && isRegion(parts[2])) {
+            return matchTarget(lang + "-" + parts[1]);
+        }
+        if (parts.length == 2 && isRegion(parts[1])) {
+            return matchTarget(lang);
+        }
+        return null;
+    }
+
+    /** What a settings screen preselects for a CMS language: the exact match, else the default, else {@code null}. */
+    public static String suggestTarget(String code) {
+        String exact = matchTarget(code);
+        return exact != null ? exact : defaultTarget(code);
+    }
+
+    /**
+     * The targets sorted by English name, for the language combo box. Show the name localized where the
+     * platform can (e.g. {@link Locale#getDisplayName(Locale)} of {@link Locale#forLanguageTag}) and the code next to it.
+     */
+    public static List<TargetLanguage> targetOptions() {
+        return TARGET_OPTIONS;
+    }
+
+    private static boolean isRegion(String subtag) {
+        return subtag.matches("[a-z]{2}|[0-9]{3}");
     }
 
     /** The supported source for {@code code}: exact match, else its first subtag ({@code en-US} → {@code en}), else {@code null}. */
@@ -145,16 +222,19 @@ public final class Languages {
     /**
      * The target code to send: the mapping's value (sent trimmed and otherwise as it is, even if it isn't in
      * {@link #TARGETS}, so a language Supertext adds later can be used before the SDK knows it), else an exact
-     * match ({@link #matchTarget}).
+     * match ({@link #matchTarget}), else the default ({@link #defaultTarget}).
      *
      * @param mapping CMS language → Supertext code, e.g. {@code {de=de-CH, no=nb}}; keys are compared like codes. May be {@code null}.
      * @throws SupertextException {@link ErrorCode#UNSUPPORTED_LANGUAGE} (with {@link SupertextException#getTargetLang()})
-     *                            when there is neither; nothing is sent
+     *                            when there is none of them; nothing is sent
      */
     public static String target(String code, Map<String, String> mapping) {
         String result = mapped(code, mapping);
         if (result == null) {
             result = matchTarget(code);
+        }
+        if (result == null) {
+            result = defaultTarget(code);
         }
         if (result == null) {
             String given = code == null ? "" : code.strip();

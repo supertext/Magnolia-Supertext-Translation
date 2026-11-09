@@ -1,5 +1,10 @@
 package com.supertext.magnolia.translation;
 
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Module settings as stored in {@code config:/modules/supertext-translation/config} (edited in
  * the <em>Supertext</em> app, app launcher → Translation). Also the Magnolia module class. Read
@@ -12,7 +17,9 @@ public class SupertextTranslationModule {
     private String endpoint = "";
     private String politeness = "default";
     private int pollTimeoutSeconds = 300;
-    private String languageMapping = "";
+    private Map<String, String> languageCodes = new LinkedHashMap<>();
+    private Set<String> reviewLanguages = new LinkedHashSet<>();
+    private String reviewUrl;
     private String excludedProperties = "";
     private String additionalProperties = "";
     private Boolean versionReports;
@@ -54,15 +61,41 @@ public class SupertextTranslationModule {
     }
 
     /**
-     * One {@code magnoliaLocale=supertextCode} per line, e.g. {@code de=de-CH}. Needed for every site language that
-     * isn't a Supertext code already (see {@link com.supertext.magnolia.translation.api.LanguageMapping}).
+     * Magnolia language → Supertext code, e.g. {@code de=de-CH}: the combo boxes under <em>Language codes</em>,
+     * stored as the child node {@code languageCodes} (one property per language). A language without an entry is
+     * sent as its exact match or the SDK's default (see {@link com.supertext.magnolia.translation.api.LanguageMapping}).
      */
-    public String getLanguageMapping() {
-        return languageMapping;
+    public Map<String, String> getLanguageCodes() {
+        return languageCodes;
     }
 
-    public void setLanguageMapping(String languageMapping) {
-        this.languageMapping = languageMapping;
+    public void setLanguageCodes(Map<String, String> languageCodes) {
+        this.languageCodes = languageCodes == null ? new LinkedHashMap<>() : new LinkedHashMap<>(languageCodes);
+    }
+
+    /**
+     * Magnolia languages with <em>Translation review</em> on (the checkboxes next to the combo boxes, stored as the
+     * child node {@code languageReview}, {@code de_CH = true}): translations into them go through Supertext's review
+     * service.
+     */
+    public Set<String> getReviewLanguages() {
+        return reviewLanguages;
+    }
+
+    public void setReviewLanguages(Set<String> reviewLanguages) {
+        this.reviewLanguages = reviewLanguages == null ? new LinkedHashSet<>() : new LinkedHashSet<>(reviewLanguages);
+    }
+
+    /**
+     * The review service's base URL ({@code reviewUrl}): {@code null} when not set (= Supertext's review service),
+     * {@code ""} = review off for every language. {@code SUPERTEXT_REVIEW_URL} wins.
+     */
+    public String getReviewUrl() {
+        return reviewUrl;
+    }
+
+    public void setReviewUrl(String reviewUrl) {
+        this.reviewUrl = reviewUrl;
     }
 
     /** Property names never translated (comma or line separated). */

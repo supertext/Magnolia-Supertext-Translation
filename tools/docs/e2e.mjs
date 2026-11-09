@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * End-to-end check of the demo: signs in as the demo editor, translates the sample page into
- * German with "Translate with Supertext", and checks the German page shows translated text.
+ * German with "Translate with Supertext", and checks the German page shows translated text. Then
+ * exports the page for translation (HTML), "translates" the file and imports it again.
  *
  *   DEMO_URL=http://localhost:8080 DEMO_EDITOR_EMAIL=… DEMO_EDITOR_PASSWORD=… node e2e.mjs
  *
@@ -9,8 +10,8 @@
  * on failure and writes out/e2e-failure.png. See docs/DEVELOPER.md -> Docs screenshots.
  */
 import { chromium } from 'playwright';
-import { mkdirSync } from 'node:fs';
-import { openPages, selectPage, signIn, translate } from './magnolia.mjs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dismissNotifications, exportForTranslation, importTranslation, openPages, selectPage, signIn, translate } from './magnolia.mjs';
 
 const base = (process.env.DEMO_URL || 'http://localhost:8080').replace(/\/$/, '');
 const email = process.env.DEMO_EDITOR_EMAIL;
@@ -37,6 +38,24 @@ try {
   const h1 = (await german.locator('h1').innerText()).trim();
   console.log('German title:', h1);
   if (!/Übersetzen mit Supertext|\[de-CH\]/.test(h1)) throw new Error(`German page not translated: ${h1}`);
+
+  // Export for translation (HTML) → translate the file → import translation.
+  await dismissNotifications(page);
+  const exported = await exportForTranslation(page, ['de_CH'], 'html');
+  console.log('Exported:', exported.name);
+  if (!/^magnolia-.+-de_CH\.html$/.test(exported.name) || !exported.content.includes('supertext:reference')) {
+    throw new Error(`Unexpected export: ${exported.name}`);
+  }
+  const translated = exported.content.replace(/(<div data-st-id="\d+">)/g, '$1[file] ');
+  const upload = new URL(`out/${exported.name}`, import.meta.url).pathname;
+  writeFileSync(upload, translated);
+  const summary = await importTranslation(page, upload, { overwrite: true });
+  console.log('Import:', summary.replace(/\s+/g, ' '));
+  if (!/Imported: [1-9]/.test(summary)) throw new Error('Nothing imported');
+  await german.reload();
+  const imported = (await german.locator('h1').innerText()).trim();
+  console.log('German title after import:', imported);
+  if (!imported.includes('[file]')) throw new Error(`Import not written: ${imported}`);
   console.log('OK');
 } catch (e) {
   await page.screenshot({ path: new URL('out/e2e-failure.png', import.meta.url).pathname });

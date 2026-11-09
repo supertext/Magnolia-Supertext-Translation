@@ -5,4 +5,6 @@ tools/docs/out/
 .idea/
 .vscode/
 .DS_Store
+tools/docs/movie/out/
+tools/docs/movie/voice-cache/
 tools/e2e/artifacts/

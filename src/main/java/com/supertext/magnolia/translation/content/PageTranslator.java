@@ -15,6 +15,10 @@ import javax.jcr.PropertyType;
 import javax.jcr.RepositoryException;
 
 import com.supertext.magnolia.translation.api.SupertextException;
+import com.supertext.magnolia.translation.internal.sdk.files.FileSegment;
+import com.supertext.magnolia.translation.internal.sdk.files.ImportedSegment;
+import com.supertext.magnolia.translation.internal.sdk.files.TranslationFile;
+import com.supertext.magnolia.translation.internal.sdk.files.TranslationFiles;
 import com.supertext.magnolia.translation.internal.sdk.v1.Segment;
 
 /**
@@ -26,6 +30,10 @@ import com.supertext.magnolia.translation.internal.sdk.v1.Segment;
  *
  * <p>Existing translations are kept unless {@code overwrite} is set. Each language is saved
  * on its own: if one fails, the others are still saved, and the failed one is rolled back.</p>
+ *
+ * <p>The same texts, under the same keys (the node's path below the page, {@code @} and the property:
+ * {@code @title}, {@code main/0@text}), are exported to translation files ({@link #fileSegments}) and
+ * imported from them ({@link #importFile}), which writes with the same rules.</p>
  *
  * <p>Works on plain JCR nodes; Magnolia specifics (which fields are translatable, how a node is
  * marked modified, how Supertext is called) are passed in, so it is unit-tested with mock nodes.</p>
@@ -77,6 +85,14 @@ public final class PageTranslator {
         }
     }
 
+    /**
+     * Outcome of importing one job of a translation file. {@code imported} counts the texts written,
+     * {@code kept} the translated texts not written because the language already had a translation
+     * there and overwrite wasn't asked for.
+     */
+    public record FileImportResult(int imported, int sourceChanged, int untranslated, int invalidMarkup, int missing, int kept) {
+    }
+
     private final SiteLanguages languages;
     private final FieldResolver fields;
     private final TextTranslator translator;
@@ -125,31 +141,7 @@ public final class PageTranslator {
     private LanguageResult translateInto(List<Node> nodes, Locale source, Locale target, boolean overwrite)
             throws RepositoryException, SupertextException, InterruptedException {
         Map<String, Unit> units = new LinkedHashMap<>();
-        Set<String> seen = new java.util.HashSet<>();
-        int kept = 0;
-        for (Node owner : nodes) {
-            for (TranslatableField field : fields.fieldsOf(owner)) {
-                if (excluded.contains(field.name())) {
-                    continue;
-                }
-                Node node = field.childNode().isEmpty() ? owner : owner.hasNode(field.childNode()) ? owner.getNode(field.childNode()) : null;
-                if (node == null || !seen.add(node.getPath() + "@" + field.name())) {
-                    continue;
-                }
-                String text = stringValue(node, field.name());
-                if (text == null || text.isBlank()) {
-                    continue;
-                }
-                String targetName = languages.propertyName(field.name(), target);
-                String existing = stringValue(node, targetName);
-                if (existing != null && !existing.isBlank() && !overwrite) {
-                    kept++;
-                    continue;
-                }
-                units.put(node.getPath() + "@" + field.name(),
-                        new Unit(node, targetName, field.html() ? Segment.html(text) : Segment.text(text)));
-            }
-        }
+        int kept = collectUnits(nodes.get(0), nodes, target, overwrite, units);
 
         int translated = 0;
         Set<Node> touched = new LinkedHashSet<>();
@@ -168,6 +160,126 @@ public final class PageTranslator {
                 translated++;
             }
         }
+        markTouched(touched);
+        return new LanguageResult(target, translated, kept, null);
+    }
+
+    /**
+     * Export for translation: the page's own texts (its properties, areas and components, no subpages)
+     * in the site's default language, keyed like the API translation.
+     */
+    public List<FileSegment> fileSegments(Node page) throws RepositoryException {
+        List<Node> nodes = new ArrayList<>();
+        collect(page, false, nodes);
+        Map<String, Unit> units = new LinkedHashMap<>();
+        collectUnits(page, nodes, null, true, units);
+        List<FileSegment> segments = new ArrayList<>();
+        units.forEach((key, unit) -> segments.add(new FileSegment(key, unit.segment().getText(), unit.segment().isHtml())));
+        return segments;
+    }
+
+    /**
+     * Import translation: one job of a translation file into the page's {@code target} language. Collects the
+     * page's texts again ({@link #fileSegments}), lets the SDK match the file's translations to them and writes
+     * {@code ok} ones, and {@code source_changed} ones when {@code includeChanged}, into the language's properties.
+     * Existing translations are kept unless {@code overwrite}, as for API translations. Saved at the end; on an
+     * error nothing is saved.
+     */
+    public FileImportResult importFile(TranslationFile file, Node page, Locale target, boolean includeChanged, boolean overwrite)
+            throws RepositoryException {
+        List<Node> nodes = new ArrayList<>();
+        collect(page, false, nodes);
+        Map<String, Unit> units = new LinkedHashMap<>();
+        collectUnits(page, nodes, target, true, units);
+        List<FileSegment> current = new ArrayList<>();
+        units.forEach((key, unit) -> current.add(new FileSegment(key, unit.segment().getText(), unit.segment().isHtml())));
+
+        int imported = 0;
+        int changed = 0;
+        int untranslated = 0;
+        int invalid = 0;
+        int missing = 0;
+        int kept = 0;
+        Set<Node> touched = new LinkedHashSet<>();
+        try {
+            for (ImportedSegment result : TranslationFiles.importTranslations(file, current)) {
+                switch (result.getStatus()) {
+                    case OK, SOURCE_CHANGED -> {
+                        if (result.getStatus() == com.supertext.magnolia.translation.internal.sdk.files.ImportStatus.SOURCE_CHANGED && !includeChanged) {
+                            changed++;
+                            continue;
+                        }
+                        Unit unit = units.get(result.getKey());
+                        String existing = stringValue(unit.node(), unit.property());
+                        if (existing != null && !existing.isBlank() && !overwrite) {
+                            kept++;
+                            continue;
+                        }
+                        unit.node().setProperty(unit.property(), result.getText());
+                        touched.add(unit.node());
+                        imported++;
+                    }
+                    case UNTRANSLATED -> untranslated++;
+                    case INVALID_MARKUP -> invalid++;
+                    default -> missing++;
+                }
+            }
+            if (!touched.isEmpty()) {
+                markTouched(touched);
+                page.getSession().save();
+            }
+        } catch (RepositoryException | RuntimeException e) {
+            page.getSession().refresh(false);
+            throw e;
+        }
+        return new FileImportResult(imported, changed, untranslated, invalid, missing, kept);
+    }
+
+    /**
+     * The translatable texts of {@code nodes} by key (path below {@code root}, {@code @}, property). With a
+     * {@code target}, each unit writes to that language's property; without overwrite, texts that already have a
+     * translation there are left out and counted (the return value).
+     */
+    private int collectUnits(Node root, List<Node> nodes, Locale target, boolean overwrite, Map<String, Unit> units) throws RepositoryException {
+        Set<String> seen = new java.util.HashSet<>();
+        int kept = 0;
+        for (Node owner : nodes) {
+            for (TranslatableField field : fields.fieldsOf(owner)) {
+                if (excluded.contains(field.name())) {
+                    continue;
+                }
+                Node node = field.childNode().isEmpty() ? owner : owner.hasNode(field.childNode()) ? owner.getNode(field.childNode()) : null;
+                if (node == null || !seen.add(node.getPath() + "@" + field.name())) {
+                    continue;
+                }
+                String text = stringValue(node, field.name());
+                if (text == null || text.isBlank()) {
+                    continue;
+                }
+                String targetName = target == null ? null : languages.propertyName(field.name(), target);
+                String existing = targetName == null ? null : stringValue(node, targetName);
+                if (existing != null && !existing.isBlank() && !overwrite) {
+                    kept++;
+                    continue;
+                }
+                units.put(key(root, node) + "@" + field.name(),
+                        new Unit(node, targetName, field.html() ? Segment.html(text) : Segment.text(text)));
+            }
+        }
+        return kept;
+    }
+
+    /** The node's path below {@code root} ("" for the root itself), so keys survive moving or renaming the page. */
+    private static String key(Node root, Node node) throws RepositoryException {
+        String rootPath = root.getPath();
+        String path = node.getPath();
+        if (path.equals(rootPath)) {
+            return "";
+        }
+        return path.startsWith(rootPath + "/") ? path.substring(rootPath.length() + 1) : path;
+    }
+
+    private void markTouched(Set<Node> touched) throws RepositoryException {
         Set<Node> pagesTouched = new LinkedHashSet<>();
         for (Node node : touched) {
             marker.touched(node);
@@ -179,7 +291,6 @@ public final class PageTranslator {
         for (Node page : pagesTouched) {
             marker.touched(page);
         }
-        return new LanguageResult(target, translated, kept, null);
     }
 
     /** Adds the page, its areas and components (and subpages if asked) to {@code out}; returns the page count. */

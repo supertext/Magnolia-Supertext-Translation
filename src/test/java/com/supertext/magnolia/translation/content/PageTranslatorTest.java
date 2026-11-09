@@ -183,4 +183,69 @@ class PageTranslatorTest {
         assertEquals(Map.of("de_CH", DE).get("de_CH"), languages.byId("de_CH").orElseThrow());
         assertTrue(languages.isEnabled());
     }
+
+    // --- Translation files (Export for translation / Import translation) -----------------
+
+    /** The page's export, translated like a translator would ("[fr] " before every source). */
+    private com.supertext.magnolia.translation.internal.sdk.files.TranslationFile exportedAndTranslated(String target) throws Exception {
+        List<com.supertext.magnolia.translation.internal.sdk.files.FileSegment> segments = translator(Set.of()).fileSegments(page);
+        String xliff = com.supertext.magnolia.translation.internal.sdk.files.TranslationFiles.exportXliff(List.of(
+                TranslationFileExchange.job(page.getIdentifier(), target, "en", "fr-CH", segments)));
+        String translated = java.util.regex.Pattern.compile("<source>(.*?)</source>").matcher(xliff)
+                .replaceAll(m -> java.util.regex.Matcher.quoteReplacement(m.group() + "<target>[fr] " + m.group(1) + "</target>"));
+        return com.supertext.magnolia.translation.internal.sdk.files.TranslationFiles.read(translated).get(0);
+    }
+
+    @Test
+    void fileSegmentsAreThePagesOwnTextsWithStableKeys() throws Exception {
+        List<com.supertext.magnolia.translation.internal.sdk.files.FileSegment> segments = translator(Set.of()).fileSegments(page);
+        assertEquals(List.of("@title", "main/0@text", "main/0/teaser@teaserTitle"), segments.stream().map(s -> s.getKey()).toList());
+        assertTrue(segments.get(1).isHtml());
+        page.setProperty("title_fr_CH", "Bienvenue");
+        assertEquals(3, translator(Set.of()).fileSegments(page).size(), "existing translations are still exported");
+    }
+
+    @Test
+    void importWritesOkTextsAndKeepsExistingTranslations() throws Exception {
+        page.setProperty("title_fr_CH", "Bienvenue (edited)");
+        var file = exportedAndTranslated("fr_CH");
+
+        PageTranslator.FileImportResult result = translator(Set.of()).importFile(file, page, FR, false, false);
+        assertEquals(new PageTranslator.FileImportResult(2, 0, 0, 0, 0, 1), result);
+        assertEquals("Bienvenue (edited)", page.getProperty("title_fr_CH").getString(), "kept without overwrite");
+        assertEquals("[fr] <p>Hello <b>world</b></p>", text.getProperty("text_fr_CH").getString());
+        assertTrue(touched.contains(text));
+
+        assertEquals(3, translator(Set.of()).importFile(file, page, FR, false, true).imported());
+        assertEquals("[fr] Welcome", page.getProperty("title_fr_CH").getString(), "overwritten when asked");
+    }
+
+    @Test
+    void sourceChangedIsImportedOnlyWhenAsked() throws Exception {
+        var file = exportedAndTranslated("fr_CH");
+        page.setProperty("title", "Welcome again");
+
+        assertEquals(new PageTranslator.FileImportResult(2, 1, 0, 0, 0, 0), translator(Set.of()).importFile(file, page, FR, false, false));
+        assertFalse(page.hasProperty("title_fr_CH"));
+        assertEquals(3, translator(Set.of()).importFile(file, page, FR, true, true).imported());
+        assertEquals("[fr] Welcome", page.getProperty("title_fr_CH").getString());
+    }
+
+    @Test
+    void untranslatedInvalidAndMissingAreNotWritten() throws Exception {
+        List<com.supertext.magnolia.translation.internal.sdk.files.FileSegment> segments = translator(Set.of()).fileSegments(page);
+        String xliff = com.supertext.magnolia.translation.internal.sdk.files.TranslationFiles.exportXliff(List.of(
+                TranslationFileExchange.job(page.getIdentifier(), "fr_CH", "en", "fr-CH", segments)));
+        xliff = xliff.replaceFirst("(<trans-unit id=\"@title\"[^>]*>\\s*<source>Welcome</source>)", "$1<target>Bienvenue</target>");
+        xliff = xliff.replaceFirst("(<trans-unit id=\"main/0@text\"[^>]*>\\s*<source>.*?</source>)", "$1<target>Bonjour <script>x</script></target>");
+        var file = com.supertext.magnolia.translation.internal.sdk.files.TranslationFiles.read(xliff).get(0);
+        text.setProperty("headline", "A headline added since the export");
+
+        PageTranslator.FileImportResult result = translator(Set.of()).importFile(file, page, FR, true, true);
+        assertEquals(new PageTranslator.FileImportResult(1, 0, 1, 1, 1, 0), result);
+        assertEquals("Bienvenue", page.getProperty("title_fr_CH").getString());
+        assertFalse(text.hasProperty("text_fr_CH"));
+        assertFalse(text.hasProperty("headline_fr_CH"));
+        assertFalse(text.getNode("teaser").hasProperty("teaserTitle_fr_CH"));
+    }
 }

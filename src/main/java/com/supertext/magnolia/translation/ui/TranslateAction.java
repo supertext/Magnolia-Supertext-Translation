@@ -123,7 +123,8 @@ public class TranslateAction extends AbstractAction<TranslateActionDefinition> {
         PageTranslator translator = new PageTranslator(
                 languages,
                 new DialogFieldResolver(templates, dialogs, settings.additionalProperties()),
-                (texts, target, source) -> supertext.translateTexts(settings.connection(), texts,
+                // Languages with Translation review on go through Supertext's review service.
+                (texts, target, source) -> supertext.translateTexts(settings.connection(target), texts,
                         settings.targetLanguageCode(target), settings.sourceLanguageCode(source), settings.politeness()),
                 NodeTypes.LastModified::update,
                 settings.excludedProperties());

@@ -17,7 +17,8 @@ import com.supertext.magnolia.translation.internal.sdk.v1.SupertextClient;
  * The module's access to Supertext, on top of the Supertext Java SDK (API v1 in {@code com.supertext.magnolia.translation.internal.sdk.v1},
  * bundled in lib/supertext-sdk and compiled into the module's jar). The SDK does the protocol (upload, poll, download, delete, 429
  * retries, packing texts into {@code data-st-id} documents); this class adds what is Magnolia's:
- * the connection from the settings, the https-only endpoint rule, the module version in the
+ * the connection from the settings (the review service for languages with <em>Translation review</em> on, see
+ * {@link SupertextConnection#forReview(boolean)}), the https-only endpoint rule, the module's name and version in the
  * User-Agent, and errors as {@link SupertextException} with a message key the UI translates.
  *
  * <p>No Magnolia classes, so it is unit-tested on its own (with a fake {@link Transport}).</p>
@@ -25,6 +26,17 @@ import com.supertext.magnolia.translation.internal.sdk.v1.SupertextClient;
 public class SupertextService {
 
     public static final String DEFAULT_ENDPOINT = SupertextClient.LIVE_BASE_URL;
+
+    /**
+     * Supertext's review service (the translation proxy of Supertext Localization Review). It speaks the same API v1
+     * and forwards to the live Supertext API with the module's key, keeping every translation so reviewers can correct
+     * them on the website; their corrections come back with the next translation. Used for target languages with
+     * <em>Translation review</em> on (setting {@code reviewUrl} / {@code SUPERTEXT_REVIEW_URL}).
+     */
+    public static final String REVIEW_URL = "https://localizationreview-production.up.railway.app/v1/";
+
+    /** The module's name and version in the User-Agent, as in the version reports. */
+    static final String PLUGIN_NAME = "Magnolia-Supertext-Translation";
 
     /** Prefix of the error message keys in the module's i18n bundle. */
     public static final String KEY_PREFIX = "supertext-translation.error.";
@@ -85,8 +97,8 @@ public class SupertextService {
 
     /**
      * The Supertext target code for a Magnolia language ({@code de_CH}): the mapping's entry, else an exact
-     * match ({@code de_CH} → {@code de-CH}), else the error {@code unsupportedLanguage} (nothing is sent).
-     * No default regions: {@code de} needs a mapping.
+     * match ({@code de_CH} → {@code de-CH}), else the SDK's default ({@code de} → {@code de-DE}), else the error
+     * {@code unsupportedLanguage} (nothing is sent): {@code de_LI}, {@code en_IE}, {@code gsw} need a mapping.
      */
     public static String targetCode(String language, Map<String, String> mapping) throws SupertextException {
         try {
@@ -116,7 +128,7 @@ public class SupertextService {
                 .pollInterval(Duration.ofMillis(Math.max(100, connection.pollIntervalMillis())))
                 .timeout(Duration.ofSeconds(Math.max(10, connection.pollTimeoutSeconds())))
                 .requestTimeout(Duration.ofSeconds(60))
-                .userAgent("Supertext-Magnolia/" + version());
+                .userAgent(PLUGIN_NAME + "/" + version());
         if (transport != null) {
             builder.transport(transport);
         }
@@ -149,8 +161,8 @@ public class SupertextService {
                 args = new Object[] {orUnknown(e.getTargetLang() != null ? e.getTargetLang() : e.getSourceLang(),
                         targetLanguage != null ? targetLanguage : sourceLanguage)};
                 detail = "";
-                message = "The Magnolia language " + args[0] + " has no Supertext language code. Map it in Translation → Supertext"
-                        + " → Language codes (e.g. de=de-CH). Nothing was sent.";
+                message = "The Magnolia language " + args[0] + " has no Supertext language code. Choose one in Translation → Supertext"
+                        + " → Language codes. Nothing was sent.";
                 break;
             case UNSUPPORTED_FEATURE:
                 key = "unsupportedFeature";

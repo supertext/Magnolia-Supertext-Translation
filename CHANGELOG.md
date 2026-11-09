@@ -4,9 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## Unreleased
 
+### Added
+
+- **Translation review** on/off per language (Supertext app → *Language codes*, a checkbox next to each translated language's combo box): translations into a ticked language go through Supertext's review service (Supertext Localization Review), where customers and Supertext linguists correct them on the website with a Chrome extension; corrections come back into Magnolia with the next translation, and texts translated before keep their (reviewed) wording. Same API key, billing, languages and messages; other languages keep going directly to Supertext. New setting `reviewUrl` / `SUPERTEXT_REVIEW_URL` (defaults to Supertext's review service; empty turns review off for every language). English, German, French, Italian.
+- Requests to Supertext name the module and its version in the User-Agent (`Magnolia-Supertext-Translation/<version>`, was `Supertext-Magnolia/<version>`).
+
+- Export for translation (XLIFF 1.2 or HTML) and import of translated files; Supertext SDK 0.5.0. Two new actions in the Pages app: *Export for translation* downloads a page's texts for the ticked languages (HTML: one), *Import translation* uploads the translated file (at most 10 MB) and writes the texts into the page's languages with the same rules as *Translate with Supertext* (existing translations kept unless *Overwrite*), with a summary (imported, skipped because the source changed, untranslated, formatting changed, not in the file). Texts whose source changed since the export are only imported on request. English, German, French, Italian.
+- Docs: a voiced demo movie (GIF at the top of the README) and an install and configuration movie, recorded from the demo (`npm run movie`, `npm run movie:install` in `tools/docs`).
+- Support: the Supertext support form is linked in the README, the user guide and GitHub's "New issue" page.
+
 ### Changed
 
+- Tested with Magnolia 6.4.11-sp1 Community Edition (the demo now runs it).
+- **Language codes: a combo box per site language.** The Supertext app lists every site language (main language included) with a combo box of Supertext's target languages (*German (Switzerland) (de-CH)*), preselected with the stored choice, else the same code, else Supertext's default (`de` → `de-DE`, `zh_TW` → `zh-Hant`, `es_ES` → `es`); languages without a default (`en_IE`, `de_LI`, `gsw`) show *— choose —*. Only codes from the list can be saved. The old text field (`de=de-CH` per line) is moved into the combo boxes at the first start, so nothing configured is lost. The *unsupported language* message says where to choose the code. English, German, French, Italian.
 - The module now talks to Supertext through the [Supertext Java SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) 0.3.0, bundled in the module's jar: still one jar to install, no new libraries. Same protocol, retries and settings as before.
+- A language without a *Language codes* line now uses Supertext's obvious default (Supertext SDK 0.4.0): `de` → `de-DE`, `en` → `en-US`, `fr` → `fr-FR`, `it` → `it-IT`, `pt` → `pt-PT`, `zh_CN` → `zh-Hans`, `es_ES` → `es`; the Supertext app shows it as *Supertext default*. Languages without an obvious default (`en_IE`, `de_LI`, `gsw` …) still need a line.
 - **Language codes: no more guessing.** Only the codes Supertext offers are sent: a *Language codes* line wins, else a locale that already is a Supertext code (`de_CH` → `de-CH`, `es`), else the language is reported as unsupported and nothing is sent for it. A bare `de`, `fr`, `it`, `en` or `pt` no longer gets a default region: add a line such as `de=de-CH`. One line serves both directions (`de=de-CH` sends `de` as the source). Check the new language table in the Supertext app after updating.
 - The form of address (formal/informal) is only sent for languages that offer it; English, Romansh, Albanian, Serbian and Swiss German are translated without it instead of failing.
 - *Check connection* now checks the saved API key and shows the same result as after saving.

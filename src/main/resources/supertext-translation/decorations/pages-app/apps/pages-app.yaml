@@ -1,4 +1,4 @@
-# Adds "Translate with Supertext" to the Pages app:
+# Adds "Translate with Supertext", "Export for translation" and "Import translation" to the Pages app:
 # - the page list (browser): at the end of the edit actions, below "Paste page";
 # - the page editor (detail): with the page selected, next to "Edit page properties".
 # Lists merge by item name, so the item is appended to Magnolia's own "edit" groups.
@@ -19,6 +19,34 @@ subApps:
             notDeleted:
               $type: jcrIsDeletedRule
               negate: true
+      exportForTranslation: &export
+        label: supertext-translation.action.export.label
+        icon: icon-export
+        $type: openDialogAction
+        dialogId: supertext-translation:export
+        populate: false
+        availability:
+          writePermissionRequired: true
+          nodeTypes:
+            page: mgnl:page
+          rules:
+            notDeleted:
+              $type: jcrIsDeletedRule
+              negate: true
+      importTranslation: &import
+        label: supertext-translation.action.import.label
+        icon: icon-import
+        $type: openDialogAction
+        dialogId: supertext-translation:import
+        populate: false
+        availability:
+          writePermissionRequired: true
+          nodeTypes:
+            page: mgnl:page
+          rules:
+            notDeleted:
+              $type: jcrIsDeletedRule
+              negate: true
     actionbar:
       sections:
         - name: crud
@@ -26,9 +54,13 @@ subApps:
             - name: edit
               items:
                 - name: translateWithSupertext
+                - name: exportForTranslation
+                - name: importTranslation
   detail:
     actions:
       translateWithSupertext: *translate
+      exportForTranslation: *export
+      importTranslation: *import
     actionbar:
       sections:
         pageActions:
@@ -36,3 +68,5 @@ subApps:
             edit:
               items:
                 - name: translateWithSupertext
+                - name: exportForTranslation
+                - name: importTranslation

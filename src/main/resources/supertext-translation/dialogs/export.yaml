@@ -1,0 +1,36 @@
+# "Export for translation" dialog, opened from the Pages app (see
+# decorations/pages-app/apps/pages-app.yaml). Not bound to the page (populate: false): the commit
+# action reads the choices and offers the file for download.
+label: supertext-translation.export.label
+form:
+  properties:
+    intro:
+      $type: staticField
+      label: ""
+      value: supertext-translation.export.intro
+    format:
+      $type: radioButtonGroupField
+      label: supertext-translation.export.format.label
+      defaultValue: xliff
+      datasource:
+        $type: optionListDatasource
+        options:
+          - name: xliff
+            value: xliff
+            label: supertext-translation.export.format.xliff
+          - name: html
+            value: html
+            label: supertext-translation.export.format.html
+    targetLanguages:
+      $type: checkBoxGroupField
+      label: supertext-translation.export.targetLanguages.label
+      required: true
+      datasource:
+        name: supertext-target-languages
+actions:
+  cancel:
+    label: supertext-translation.dialog.cancel
+    $type: closeAction
+  commit:
+    label: supertext-translation.export.commit
+    class: com.supertext.magnolia.translation.ui.ExportForTranslationActionDefinition

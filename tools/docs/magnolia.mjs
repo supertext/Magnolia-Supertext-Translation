@@ -63,3 +63,46 @@ export async function dismissNotifications(page) {
   }
   await page.waitForTimeout(500);
 }
+
+/**
+ * "Export for translation": opens the dialog, picks the format (xliff or html) and languages, and returns
+ * { name, content } of the downloaded file. The download opens in a new tab (Magnolia's own exports do the same).
+ */
+export async function exportForTranslation(page, languages, format = 'xliff') {
+  await page.locator('.v-actionbar').getByText('Export for translation', { exact: true }).first().click();
+  const dialog = page.locator('.v-window').filter({ hasText: 'File format' }).first();
+  await dialog.waitFor({ timeout: 30000 });
+  await page.waitForTimeout(800);
+  await dialog.locator('.v-select-optiongroup label', { hasText: format === 'html' ? 'HTML' : 'XLIFF' }).click();
+  for (const id of languages) {
+    await dialog.locator('.v-select-optiongroup label', { hasText: `· ${id}` }).click();
+  }
+  const context = page.context();
+  const download = new Promise((resolve) => {
+    page.once('download', resolve);
+    context.once('page', (popup) => popup.once('download', resolve));
+  });
+  await dialog.getByRole('button', { name: 'Download file', exact: true }).click();
+  const file = await download;
+  await page.bringToFront();
+  const { readFile } = await import('node:fs/promises');
+  return { name: file.suggestedFilename(), content: await readFile(await file.path(), 'utf8') };
+}
+
+/** "Import translation": uploads a file (path) with the options and returns the notification text. */
+export async function importTranslation(page, path, { overwrite = false, includeChanged = false } = {}) {
+  await dismissNotifications(page);
+  await page.locator('.v-actionbar').getByText('Import translation', { exact: true }).first().click();
+  const dialog = page.locator('.v-window').filter({ hasText: 'Translated file (XLIFF or HTML)' }).first();
+  await dialog.waitFor({ timeout: 30000 });
+  await page.waitForTimeout(800);
+  await dialog.locator('input[type=file]').first().setInputFiles(path);
+  await page.waitForTimeout(2500); // the upload finishes in the background
+  await dismissNotifications(page); // the upload field's "Your file … was uploaded" message covers the dialog
+  if (includeChanged) await dialog.getByText('Also import texts whose source changed since the export', { exact: true }).click();
+  if (overwrite) await dialog.getByText('Overwrite existing translations', { exact: true }).click();
+  await dialog.getByRole('button', { name: 'Import translation', exact: true }).click();
+  const note = page.locator('.v-Notification').first();
+  await note.waitFor({ timeout: 60000 });
+  return note.innerText();
+}

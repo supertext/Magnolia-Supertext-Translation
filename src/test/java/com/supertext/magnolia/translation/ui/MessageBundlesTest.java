@@ -138,9 +138,9 @@ class MessageBundlesTest {
     @ParameterizedTest
     @ValueSource(strings = {"en", "de", "fr", "it"})
     void unsupportedLanguageNamesTheLanguageAndWhereToMapIt(String language) {
-        SupertextException e = assertThrows(SupertextException.class, () -> SupertextService.targetCode("pt", java.util.Map.of()));
+        SupertextException e = assertThrows(SupertextException.class, () -> SupertextService.targetCode("pt_AO", java.util.Map.of()));
         String text = new SupertextMessages(translator(language)).of(e);
-        assertTrue(text.contains("pt") && text.contains("Supertext →"), language + ": " + text);
+        assertTrue(text.contains("pt_AO") && text.contains("Supertext →"), language + ": " + text);
     }
 
     @Test

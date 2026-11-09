@@ -1,6 +1,9 @@
 package com.supertext.magnolia.translation.ui.settings;
 
+import java.text.Collator;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,6 +29,8 @@ import com.supertext.magnolia.translation.api.LanguageMapping;
 import com.supertext.magnolia.translation.api.SupertextService;
 import com.supertext.magnolia.translation.api.SupertextException;
 import com.supertext.magnolia.translation.internal.pluginhealth.KeyCheck;
+import com.supertext.magnolia.translation.internal.sdk.v1.Languages;
+import com.supertext.magnolia.translation.internal.sdk.v1.TargetLanguage;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReporterResult;
 import com.supertext.magnolia.translation.reporting.ReportingService;
 import com.supertext.magnolia.translation.ui.SiteLanguagesLookup;
@@ -34,9 +39,11 @@ import com.vaadin.server.Sizeable;
 import com.vaadin.shared.ui.ContentMode;
 import com.vaadin.ui.Button;
 import com.vaadin.ui.CheckBox;
+import com.vaadin.ui.ComboBox;
 import com.vaadin.ui.Component;
 import com.vaadin.ui.CssLayout;
 import com.vaadin.ui.FormLayout;
+import com.vaadin.ui.GridLayout;
 import com.vaadin.ui.HorizontalLayout;
 import com.vaadin.ui.Label;
 import com.vaadin.ui.Notification;
@@ -49,7 +56,8 @@ import com.vaadin.ui.VerticalLayout;
 
 /**
  * Translation → Supertext: API key (with a connection check), endpoint, form of address, language
- * code mapping (with the site languages and how each is sent), excluded and additional properties,
+ * codes (a combo box per site language with Supertext's target codes, preselected with the stored code, else the
+ * SDK's suggestion), excluded and additional properties,
  * timeout, version reports. Shows the installed version, the latest automatic API key check and
  * where to get a Supertext account and API key.
  */
@@ -73,11 +81,18 @@ public class SupertextSettingsView implements View {
     private final TextField endpoint = new TextField();
     private final RadioButtonGroup<String> politeness = new RadioButtonGroup<>();
     private final TextField timeout = new TextField();
-    private final TextArea languageMapping = new TextArea();
     private final TextArea excluded = new TextArea();
     private final TextArea additional = new TextArea();
     private final CheckBox versionReports = new CheckBox();
-    private final Label languages = new Label("", ContentMode.HTML);
+    private final GridLayout languages = new GridLayout(3, 1);
+    /** Site language → its combo box (in the order shown). */
+    private final Map<String, ComboBox<String>> languageBoxes = new LinkedHashMap<>();
+    /** The stored codes, so entries of languages no site has any more are kept on save. */
+    private Map<String, String> storedCodes = new LinkedHashMap<>();
+    /** Target language → its <em>Translation review</em> checkbox (only while a review service is set). */
+    private final Map<String, CheckBox> reviewBoxes = new LinkedHashMap<>();
+    private Set<String> storedReview = new LinkedHashSet<>();
+    private final Label reviewHelp = new Label("", ContentMode.HTML);
     private final Label status = new Label("", ContentMode.HTML);
     private boolean keyStored;
 
@@ -143,14 +158,14 @@ public class SupertextSettingsView implements View {
         form.addComponent(politeness);
         form.addComponent(help(escape(t("supertext-translation.settings.politeness.help"))));
 
-        languageMapping.setCaption(t("supertext-translation.settings.languageMapping"));
-        languageMapping.setRows(3);
-        languageMapping.setPlaceholder("de=de-CH");
-        languageMapping.setWidth(100, Sizeable.Unit.PERCENTAGE);
-        form.addComponent(languageMapping);
-        form.addComponent(help(t("supertext-translation.settings.languageMapping.help")));
-        languages.setWidth(100, Sizeable.Unit.PERCENTAGE);
+        languages.setCaption(t("supertext-translation.settings.languageCodes"));
+        languages.setSpacing(true);
+        languages.addStyleName("supertext-languages");
         form.addComponent(languages);
+        form.addComponent(help(escape(t("supertext-translation.settings.languageCodes.help"))));
+        reviewHelp.addStyleName("description");
+        reviewHelp.setWidth(100, Sizeable.Unit.PERCENTAGE);
+        form.addComponent(reviewHelp);
 
         excluded.setCaption(t("supertext-translation.settings.excluded"));
         excluded.setRows(2);
@@ -216,12 +231,13 @@ public class SupertextSettingsView implements View {
             politeness.setValue(List.of("default", "more", "less").contains(p) ? p : "default");
             String seconds = values.getOrDefault(SettingsStore.POLL_TIMEOUT, "");
             timeout.setValue(seconds.isBlank() ? "300" : seconds);
-            languageMapping.setValue(values.getOrDefault(SettingsStore.LANGUAGE_MAPPING, ""));
             excluded.setValue(values.getOrDefault(SettingsStore.EXCLUDED, ""));
             additional.setValue(values.getOrDefault(SettingsStore.ADDITIONAL, ""));
             versionReports.setValue(settings.versionReportsFromEnvironment() ? settings.versionReportsEnabled()
                     : !Boolean.FALSE.equals(parseBoolean(values.getOrDefault(SettingsStore.VERSION_REPORTS, ""))));
-            languages.setValue(languageTable(LanguageMapping.parse(languageMapping.getValue())));
+            storedCodes = store.readLanguageCodes();
+            storedReview = store.readReviewLanguages();
+            buildLanguageRows(LanguageMapping.of(storedCodes));
         } catch (RepositoryException e) {
             log.warn("Supertext: could not read the settings", e);
             status.setValue(escape(t("supertext-translation.settings.readFailed")));
@@ -254,12 +270,24 @@ public class SupertextSettingsView implements View {
         values.put(SettingsStore.ENDPOINT, endpointValue);
         values.put(SettingsStore.POLITENESS, politeness.getValue() == null ? "default" : politeness.getValue());
         values.put(SettingsStore.POLL_TIMEOUT, String.valueOf(seconds));
-        values.put(SettingsStore.LANGUAGE_MAPPING, languageMapping.getValue());
         values.put(SettingsStore.EXCLUDED, excluded.getValue());
         values.put(SettingsStore.ADDITIONAL, additional.getValue());
         values.put(SettingsStore.VERSION_REPORTS, settings.versionReportsFromEnvironment() ? null : String.valueOf(Boolean.TRUE.equals(versionReports.getValue())));
+        Map<String, String> codes;
+        try {
+            codes = chosenCodes();
+        } catch (IllegalArgumentException e) {
+            Notification.show(t("supertext-translation.settings.languageCodes.invalid", e.getMessage()), Notification.Type.WARNING_MESSAGE);
+            return;
+        }
         try {
             store.write(values);
+            store.writeLanguageCodes(codes);
+            if (!reviewBoxes.isEmpty()) {
+                Map<String, Boolean> review = new LinkedHashMap<>();
+                reviewBoxes.forEach((language, box) -> review.put(language, Boolean.TRUE.equals(box.getValue())));
+                store.writeReviewLanguages(review);
+            }
             load();
             Notification.show(t("supertext-translation.settings.saved"), Notification.Type.HUMANIZED_MESSAGE);
         } catch (RepositoryException | RuntimeException e) {
@@ -294,8 +322,11 @@ public class SupertextSettingsView implements View {
                 + "<div class=\"description\">" + escape(t("supertext-translation.keyCheck.checkedAt", check.checkedAt())) + "</div>");
     }
 
-    /** The site languages and how each is sent to Supertext (or that it needs a line in "Language codes"). */
-    String languageTable(LanguageMapping mapping) {
+    /** The site languages: each site's main language (sent as source) and the others (targets), in order. */
+    record SiteLanguages(Set<String> all, Set<String> sources, Set<String> targets) {
+    }
+
+    SiteLanguages siteLanguages() {
         Set<String> sources = new LinkedHashSet<>();
         Set<String> targets = new LinkedHashSet<>();
         Set<String> all = new LinkedHashSet<>();
@@ -318,38 +349,174 @@ public class SupertextSettingsView implements View {
                 }
             }
         }
-        if (all.isEmpty()) {
-            return "<div class=\"description\">" + escape(t("supertext-translation.settings.languages.none")) + "</div>";
+        return new SiteLanguages(all, sources, targets);
+    }
+
+    /**
+     * One row per site language (main language included: one mapping serves both directions): the language's
+     * name and code, a combo box with Supertext's target codes (the stored code, else the SDK's suggestion, else
+     * "— choose —") and how the language is sent.
+     */
+    private void buildLanguageRows(LanguageMapping mapping) {
+        languages.removeAllComponents();
+        languageBoxes.clear();
+        reviewBoxes.clear();
+        // Translation review: a checkbox per target language, only while a review service is set (reviewUrl).
+        boolean review = settings.connection().reviewAvailable();
+        int infoColumn = review ? 3 : 2;
+        languages.setRows(1);
+        languages.setColumns(infoColumn + 1);
+        reviewHelp.setValue(review ? escape(t("supertext-translation.settings.review.help")) : "");
+        reviewHelp.setVisible(review);
+        SiteLanguages site = siteLanguages();
+        if (site.all().isEmpty()) {
+            languages.addComponent(help(escape(t("supertext-translation.settings.languages.none"))), 0, 0, infoColumn, 0);
+            return;
         }
-        StringBuilder html = new StringBuilder("<table class=\"supertext-languages\"><tr>")
-                .append("<th>").append(escape(t("supertext-translation.settings.languages.language"))).append("</th>")
-                .append("<th>").append(escape(t("supertext-translation.settings.languages.code"))).append("</th>")
-                .append("<th>").append(escape(t("supertext-translation.settings.languages.politeness"))).append("</th></tr>");
-        for (String language : all) {
+        languages.setRows(site.all().size() + 1);
+        languages.addComponent(html("<b>" + escape(t("supertext-translation.settings.languages.language")) + "</b>"), 0, 0);
+        languages.addComponent(html("<b>" + escape(t("supertext-translation.settings.languages.code")) + "</b>"), 1, 0);
+        if (review) {
+            Label reviewHeader = html("<b>" + escape(t("supertext-translation.settings.review")) + "</b>");
+            reviewHeader.setWidth(120, Sizeable.Unit.PIXELS); // the column is as wide as its widest cell: room for the header
+            languages.addComponent(reviewHeader, 2, 0);
+        }
+        languages.addComponent(html("<b>" + escape(t("supertext-translation.settings.languages.sent")) + "</b>"), infoColumn, 0);
+        int row = 1;
+        for (String language : site.all()) {
+            ComboBox<String> box = new ComboBox<>();
+            String selection = mapping.selection(language);
+            box.setItems(targetCodes(selection));
+            box.setItemCaptionGenerator(this::targetCaption);
+            box.setPlaceholder(t("supertext-translation.settings.languageCodes.choose"));
+            box.setEmptySelectionAllowed(true);
+            box.setEmptySelectionCaption(t("supertext-translation.settings.languageCodes.choose"));
+            box.setWidth(280, Sizeable.Unit.PIXELS);
+            box.setValue(selection);
+            box.addStyleName("supertext-language-" + language);
+            Label info = new Label("", ContentMode.HTML);
+            info.setWidth(260, Sizeable.Unit.PIXELS);
+            info.addStyleName("description");
+            boolean isTarget = site.targets().contains(language);
+            boolean isSource = site.sources().contains(language);
+            box.addValueChangeListener(e -> info.setValue(languageInfo(language, e.getValue(), isTarget, isSource)));
+            info.setValue(languageInfo(language, selection, isTarget, isSource));
+            languageBoxes.put(language, box);
+            languages.addComponent(html(escape(SiteLanguagesLookup.displayName(Locale.forLanguageTag(language.replace('_', '-'))))
+                    + " <code>" + escape(language) + "</code>"), 0, row);
+            languages.addComponent(box, 1, row);
+            if (review && isTarget) {
+                CheckBox reviewBox = new CheckBox();
+                reviewBox.setValue(isReviewed(language));
+                reviewBox.setDescription(t("supertext-translation.settings.review.help"));
+                reviewBox.addStyleName("supertext-review-" + language);
+                reviewBoxes.put(language, reviewBox);
+                languages.addComponent(reviewBox, 2, row);
+            }
+            languages.addComponent(info, infoColumn, row);
+            row++;
+        }
+    }
+
+    /** Whether <em>Translation review</em> is stored for the language (case and {@code _}/{@code -} ignored). */
+    private boolean isReviewed(String language) {
+        String key = language.replace('-', '_').toLowerCase(Locale.ROOT);
+        return storedReview.stream().anyMatch(l -> l.replace('-', '_').toLowerCase(Locale.ROOT).equals(key));
+    }
+
+    /** How the language is sent with the code chosen in its combo box (or that it isn't, without one). */
+    String languageInfo(String language, String chosen, boolean isTarget, boolean isSource) {
+        Map<String, String> one = new LinkedHashMap<>();
+        if (chosen != null && !chosen.isBlank()) {
+            one.put(language, chosen);
+        }
+        LanguageMapping mapping = LanguageMapping.of(one);
+        List<String> lines = new ArrayList<>();
+        if (isTarget) {
             LanguageMapping.Status target = mapping.status(language, false);
-            boolean isTarget = targets.contains(language);
-            String code;
-            if (!isTarget) {
-                code = "";
-            } else if (target.supported()) {
-                code = "<code>" + escape(target.code()) + "</code> · " + escape(t(target.mapped()
-                        ? "supertext-translation.settings.languages.mapped" : "supertext-translation.settings.languages.exact"));
+            if (!target.supported()) {
+                lines.add("<span style=\"color:#c62828\">✗ " + escape(t("supertext-translation.settings.languages.unsupported")) + "</span>");
             } else {
-                code = "<span style=\"color:#c62828\">✗ " + escape(t("supertext-translation.settings.languages.unsupported", language)) + "</span>";
+                lines.add(escape(t("supertext-translation.settings.languages.target", target.code())) + " · "
+                        + escape(t(Boolean.TRUE.equals(target.politeness()) ? "supertext-translation.settings.languages.politenessYes"
+                                : "supertext-translation.settings.languages.politenessNo")));
             }
-            if (sources.contains(language)) {
-                LanguageMapping.Status source = mapping.status(language, true);
-                code += (code.isEmpty() ? "" : "<br>") + (source.supported()
-                        ? escape(t("supertext-translation.settings.languages.source", source.code()))
-                        : "<span style=\"color:#c62828\">✗ " + escape(t("supertext-translation.settings.languages.sourceUnsupported", language)) + "</span>");
-            }
-            String politeness = !isTarget ? "–" : Boolean.TRUE.equals(target.politeness()) ? t("supertext-translation.settings.languages.yes")
-                    : target.supported() ? t("supertext-translation.settings.languages.no") : "–";
-            html.append("<tr><td>").append(escape(SiteLanguagesLookup.displayName(Locale.forLanguageTag(language.replace('_', '-')))))
-                    .append(" <code>").append(escape(language)).append("</code></td><td>").append(code)
-                    .append("</td><td>").append(escape(politeness)).append("</td></tr>");
         }
-        return html.append("</table>").toString();
+        if (isSource) {
+            LanguageMapping.Status source = mapping.status(language, true);
+            lines.add(source.supported() ? escape(t("supertext-translation.settings.languages.source", source.code()))
+                    : "<span style=\"color:#c62828\">✗ " + escape(t("supertext-translation.settings.languages.sourceUnsupported")) + "</span>");
+        }
+        return String.join("<br>", lines);
+    }
+
+    /** Supertext's target codes, sorted by their name in the user's language; a stored code the SDK doesn't know is kept. */
+    private List<String> targetCodes(String selection) {
+        Collator collator = Collator.getInstance(uiLocale());
+        List<String> codes = new ArrayList<>();
+        for (TargetLanguage language : Languages.targetOptions()) {
+            codes.add(language.getCode());
+        }
+        codes.sort(Comparator.comparing(this::targetName, collator));
+        if (selection != null && !codes.contains(selection)) {
+            codes.add(0, selection);
+        }
+        return codes;
+    }
+
+    /** "Name (code)" for the combo box. */
+    String targetCaption(String code) {
+        return targetName(code) + " (" + code + ")";
+    }
+
+    /** The target's name in the user's language (Java's display names), or the SDK's English name where Java has none that fits. */
+    String targetName(String code) {
+        TargetLanguage known = Languages.targetOptions().stream().filter(l -> l.getCode().equals(code)).findFirst().orElse(null);
+        if (known == null) {
+            return code;
+        }
+        Locale ui = uiLocale();
+        // gsw-u-sd-chzh / -chbe: Java ignores the subdivision, so both would read "Swiss German".
+        if (code.contains("-u-") || ui.getLanguage().equals("en")) {
+            return known.getName();
+        }
+        String name = Locale.forLanguageTag(code).getDisplayName(ui);
+        return name.isBlank() || name.equalsIgnoreCase(code) ? known.getName() : name;
+    }
+
+    private static Locale uiLocale() {
+        try {
+            Locale current = info.magnolia.context.MgnlContext.getLocale();
+            if (current != null) {
+                return current;
+            }
+        } catch (RuntimeException e) {
+            // No Magnolia context (tests).
+        }
+        return Locale.ENGLISH;
+    }
+
+    /**
+     * The codes to store: the stored ones (languages no site has any more stay) with each combo box's value
+     * (empty = no entry). Checked against Supertext's codes; a code the SDK doesn't know is only accepted when it
+     * was stored already (kept from 0.1.x). Throws with the language when a value isn't allowed.
+     */
+    Map<String, String> chosenCodes() {
+        Map<String, String> codes = new LinkedHashMap<>(storedCodes);
+        LanguageMapping stored = LanguageMapping.of(storedCodes);
+        for (Map.Entry<String, ComboBox<String>> entry : languageBoxes.entrySet()) {
+            String language = entry.getKey();
+            String code = entry.getValue().getValue();
+            codes.keySet().removeIf(k -> k.replace('_', '-').equalsIgnoreCase(language.replace('_', '-')));
+            if (code == null || code.isBlank()) {
+                continue;
+            }
+            if (!Languages.isSupportedTarget(code) && !code.equals(stored.codeFor(language))) {
+                throw new IllegalArgumentException(language);
+            }
+            codes.put(language, code);
+        }
+        return codes;
     }
 
     /** Every site's i18n configuration, or Magnolia's global one when there are no sites. */

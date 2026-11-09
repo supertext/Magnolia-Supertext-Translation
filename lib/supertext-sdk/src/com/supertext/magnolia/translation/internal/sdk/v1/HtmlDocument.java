@@ -2,8 +2,12 @@ package com.supertext.magnolia.translation.internal.sdk.v1;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.IntPredicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +52,27 @@ public final class HtmlDocument {
      */
     public static List<String> parse(String html, List<Segment> segments) {
         String[] out = new String[segments.size()];
+        scan(html, id -> id < out.length && out[id] == null,
+                (id, inner) -> out[id] = segments.get(id).isHtml() ? trimOuter(inner) : plain(inner));
+        return new ArrayList<>(Arrays.asList(out));
+    }
+
+    /**
+     * The inner HTML (outer whitespace trimmed) of the first element with each of these ids; ids without an
+     * element are absent. Same rules as {@link #parse} for HTML segments.
+     */
+    static Map<Integer, String> parseHtml(String html, Set<Integer> ids) {
+        Map<Integer, String> out = new HashMap<>();
+        scan(html, id -> ids.contains(id) && !out.containsKey(id), (id, inner) -> out.put(id, trimOuter(inner)));
+        return out;
+    }
+
+    private interface Found {
+        void accept(int id, String inner);
+    }
+
+    /** Finds the elements carrying data-st-id; {@code found} gets the inner HTML of those {@code wanted} accepts. */
+    private static void scan(String html, IntPredicate wanted, Found found) {
         Matcher start = START.matcher(html);
         int position = 0;
         while (position <= html.length() && start.find(position)) {
@@ -79,13 +104,15 @@ public final class HtmlDocument {
                 continue; // no closing tag: ignore this element
             }
             int id = digits.length() > 9 ? Integer.MAX_VALUE : Integer.parseInt(digits);
-            if (id < out.length && out[id] == null) {
-                String inner = html.substring(contentStart, end);
-                out[id] = segments.get(id).isHtml() ? OUTER_WHITESPACE.matcher(inner).replaceAll("") : plain(inner);
+            if (wanted.test(id)) {
+                found.accept(id, html.substring(contentStart, end));
             }
             position = after;
         }
-        return new ArrayList<>(Arrays.asList(out));
+    }
+
+    private static String trimOuter(String inner) {
+        return OUTER_WHITESPACE.matcher(inner).replaceAll("");
     }
 
     /** What goes between {@code <div data-st-id>} and {@code </div>} for a segment. */
@@ -111,7 +138,7 @@ public final class HtmlDocument {
     }
 
     /** Plain text from translated inner HTML: line breaks from {@code <br>}, tags removed, whitespace collapsed, entities decoded. */
-    private static String plain(String inner) {
+    static String plain(String inner) {
         String s = BR.matcher(inner).replaceAll("\u001e");
         s = TAG.matcher(s).replaceAll("");
         s = WHITESPACE.matcher(s).replaceAll(" ");
@@ -120,7 +147,8 @@ public final class HtmlDocument {
         return decode(s);
     }
 
-    private static String decode(String s) {
+    /** Decodes the known entities (amp lt gt quot apos nbsp, numeric references to Unicode scalar values). */
+    static String decode(String s) {
         Matcher m = ENTITY.matcher(s);
         StringBuilder out = new StringBuilder(s.length());
         int last = 0;

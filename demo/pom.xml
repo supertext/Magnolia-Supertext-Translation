@@ -17,7 +17,7 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
-    <magnolia.version>6.4.11</magnolia.version>
+    <magnolia.version>6.4.11-sp1</magnolia.version>
     <!-- Must match the module version in ../pom.xml (the release workflow checks both). -->
     <supertext.version>0.1.0</supertext.version>
   </properties>

@@ -6,9 +6,11 @@
   "scripts": {
     "stand-in": "node stand-in.mjs",
     "e2e": "node e2e.mjs",
-    "screenshots": "node screenshots.mjs"
+    "screenshots": "node screenshots.mjs",
+    "movie": "node movie.mjs",
+    "movie:install": "node movie-install.mjs"
   },
   "devDependencies": {
-    "playwright": "^1.64.0"
+    "playwright": "^1.65.0"
   }
 }

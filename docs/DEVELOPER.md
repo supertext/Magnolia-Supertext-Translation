@@ -124,7 +124,7 @@ Protocol: [Commando-Center-Supertext-Translation](https://github.com/Supertext/C
 
 ## Local development
 
-Java 21, Maven 3.9, Docker, Node 20+ (stand-in API, end-to-end check, screenshots). Magnolia's artifacts come from `https://nexus.magnolia-cms.com/content/groups/public` (declared in the poms), some Vaadin add-ons from `https://maven.vaadin.com/vaadin-addons`.
+Java 21, Maven 3.9, Docker, Node 20+ (stand-in API, end-to-end checks, screenshots). Magnolia's artifacts come from `https://nexus.magnolia-cms.com/content/groups/public` (declared in the poms), some Vaadin add-ons from `https://maven.vaadin.com/vaadin-addons`.
 
 ```bash
 mvn install                                   # module (with the bundled SDK) + unit tests, into ~/.m2
@@ -177,6 +177,8 @@ End to end against a running demo and the stand-in: `cd tools/docs && DEMO_URL=h
 
 CI (`.github/workflows/ci.yml`): builds and tests the module (with the bundled SDK), builds the demo image from `demo/Dockerfile`, starts it with test accounts and the stand-in, checks that both accounts were created and that no password appears in the log (the log is captured into a variable first; never `docker logs … | grep -q` under `pipefail`), runs `e2e.mjs`, then calls `/.supertext/ping` (answer, `no-store`, 400 for a bad challenge) and checks that the translation reported the installation to the stand-in (`SUPERTEXT_REPORT_URL`) without the key.
 
+`.github/workflows/e2e.yml` runs the end-to-end test against the real Supertext API and regenerates the docs screenshots (see *End-to-end tests*). `checks.yml` and `links.yml` lint the workflows and check the links (see *Code quality and security checks*).
+
 Before a release, also check by hand (fresh demo, stand-in with `STAND_IN_PREFIX=1`): translate the sample page into all three languages from the page list and from the page editor (every text carries the marker, the quote's author and the link URL don't), translate German again without and with *Overwrite*, try *Also translate all subpages* with a subpage, and remove the key to see the *No Supertext API key* message.
 
 ## Docs screenshots
@@ -191,7 +193,7 @@ cd tools/docs && npm install && npx playwright install chromium && node stand-in
 DEMO_URL=http://localhost:8080 DEMO_ADMIN_EMAIL=… DEMO_ADMIN_PASSWORD=… DEMO_EDITOR_EMAIL=… DEMO_EDITOR_PASSWORD=… npm run screenshots
 ```
 
-The settings screenshot leaves out the ping address line (`.supertext-ping`), which would show the local demo URL.
+The settings screenshot leaves out the ping address line (`.supertext-ping`), which would show the local demo URL. Dates and times on screen (the Pages app's *Modified* column, the key check's *Last checked*) are replaced with a fixed date before the screenshots are taken, CSS animations are finished (`animations: 'disabled'`), and an image that differs from the one in `docs/images/` by at most two shades per pixel, apart from a few stray pixels (Chromium’s anti-aliasing varies between runs), is left as it is (`tools/docs/png.mjs`), so the images only change when the UI does.
 
 New texts in the sample: run the stand-in with `STAND_IN_DUMP=<dir>` and translate what it writes to `<dir>/de-CH.json` into `sample-de.json`. Avoid the *Definitions* app in scripts: in Magnolia 6.4.10 it sends a message without a type, which breaks AdminCentral's banner and leaves error notifications behind.
 
@@ -217,6 +219,24 @@ DEMO_URL=http://localhost:8080 DEMO_ADMIN_EMAIL=… DEMO_ADMIN_PASSWORD=… npm 
 A terminal (`kit.terminal()`) with the steps from `docs/INSTALLATION.md` (`mvn install:install-file` with the release jar, the dependency in the webapp's `pom.xml`, `mvn package`, the module's installation in the log, the site definition's `i18n` languages; output shortened), then AdminCentral: app launcher → *Translation* → *Supertext*, where the key comes from (supertext.com → Integrations → API; create an account at supertext.com), the fake key in *API key*, *Language codes* (de_CH kept as *German (Switzerland) (de-CH)*, *Translation review* left off), *Save* with the API key check (*the connection to Supertext works*), and *Translate with Supertext* in the Pages app. The ping address line (the demo's local URL) is removed from the page before it is shown. No GIF; the MP4 goes to `tools/docs/movie/out/Magnolia-Supertext-Translation-install.mp4` (git-ignored, not committed; `MOVIE_OUT` changes the path). Record it before the demo movie on the same fresh demo (it stores the key the demo movie needs). Re-record it when the installation steps or the Supertext app change. Don't wait for network idle in these scripts (Vaadin's push connection stays open) and don't open the *Definitions* app.
 
 Voice: Piper voice “alba” (en_GB), trained on a dataset from the University of Edinburgh's Centre for Speech Technology Research, CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+
+## End-to-end tests
+
+The unit tests and the CI demo job use fakes (the stand-in). `.github/workflows/e2e.yml` also tests against the **real Supertext API**, so changes on Supertext's side (language codes, regional variants, formatting, rate limits) show up. It runs on every push to `main` that touches the module, the bundled libraries, the demo or `tools/`, on pull requests that change the E2E test or workflow, every Monday (05:33 UTC), and by hand (*Actions → E2E → Run workflow*). It builds the demo image once (Docker layer cache in GitHub Actions) and starts it twice, each a fresh container (new JCR repository) with demo accounts made up for the run and published on its own port (8081, 8082; two Tomcats can't share the host network because of the shutdown port):
+
+1. **Real API** (repository or organization secret `SUPERTEXT_API_KEY`; without it these steps are skipped with a warning). Version reports are off (`SUPERTEXT_VERSION_REPORTS=0`), so CI runs don't appear in the Commando Center.
+   - `tools/e2e/features.mjs` asks the live `GET features` (cost-free, no module or SDK code) whether every pair the demo translates (`en` → `de-CH`, `fr-CH`, `it-CH`) is offered; a missing pair fails the run. Whether the module's own language list matches the API is the SDK's job (its own tests).
+   - `tools/e2e/live.mjs` (Playwright): the demo editor (`DEMO_EDITOR_*`) selects the sample page in the Pages app and runs *Translate with Supertext* into `de_CH`, `fr_CH` and `it_CH` with *Overwrite existing translations*. The content is then read from the JCR through Magnolia's REST nodes endpoint (`/.rest/nodes/v1/website/supertext-demo`, as the demo administrator: the editor roles have no REST access) and checked: every translatable property of the page and its components (`title`, `intro`, `headline`, `text`, `quote`) has a `<name>_<locale>` translation, no node was added and nothing was published (`mgnl:activationStatus`), at least 80 % of the fields changed (a single word can stay the same), no `data-st-id`/placeholder is left, links (and their targets), bold, italics, lists, headings, paragraphs and Magnolia links (`${link:…}`) are kept, the quote's author (not translatable) is left alone, the text is in the target language (common words of each language counted) and de-CH has no "ß". The rendered page in each language (`/de_CH/supertext-demo.html`) must show the translated title and no leftovers, and the UI must show the success notification, no error or warning. Translating again must update the same nodes and properties (no duplicates). Each run translates the sample page twice into three languages (around 6,000 characters on the key's account).
+2. **Stand-in API**: the docs screenshots (see *Docs screenshots*), so the images don't change with each machine translation. If `docs/images/` changed, a second job pushes the branch `automation/docs-screenshots` and opens (or updates) the pull request "Docs: regenerate screenshots". This needs *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*.
+
+If a run fails, the artifact `e2e-debug` has the dialog and result screenshots and the rendered pages (`tools/e2e/artifacts/`), the demo logs and the stand-in log. Locally:
+
+cd tools/e2e && npm install && npx playwright install chromium
+# fresh demo (no volume) with a real SUPERTEXT_API_KEY and SUPERTEXT_VERSION_REPORTS=0, e.g. -p 8081:8080
+SUPERTEXT_API_KEY=… E2E_TARGETS=de-CH,fr-CH,it-CH node features.mjs
+DEMO_URL=http://127.0.0.1:8081 EDITOR_EMAIL=… EDITOR_PASSWORD=… ADMIN_EMAIL=… ADMIN_PASSWORD=… npm run live
+
+`live.mjs` reuses the AdminCentral helpers of `tools/docs/magnolia.mjs`. Against the stand-in it only passes for German (the stand-in has real translations for German only).
 
 ## Demo (Railway)
 

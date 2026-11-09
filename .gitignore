@@ -7,3 +7,4 @@ tools/docs/out/
 .DS_Store
 tools/docs/movie/out/
 tools/docs/movie/voice-cache/
+tools/e2e/artifacts/

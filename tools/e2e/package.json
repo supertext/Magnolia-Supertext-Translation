@@ -1,0 +1,12 @@
+{
+  "name": "supertext-magnolia-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end test of the Magnolia demo against the real Supertext API (see docs/DEVELOPER.md -> End-to-end tests)",
+  "scripts": {
+    "live": "node live.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.64.0"
+  }
+}

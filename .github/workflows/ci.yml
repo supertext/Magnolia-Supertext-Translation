@@ -31,7 +31,7 @@ jobs:
       - name: Demo entrypoint and scripts syntax
         run: |
           sh -n demo/entrypoint.sh
-          for f in tools/docs/*.mjs; do node --check "$f"; done
+          for f in tools/docs/*.mjs tools/e2e/*.mjs; do node --check "$f"; done
 
   demo:
     # Builds the image Railway builds, starts it with test accounts and the stand-in API,

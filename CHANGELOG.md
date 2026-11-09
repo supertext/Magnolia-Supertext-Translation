@@ -4,6 +4,10 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## Unreleased
 
+## 1.0.0 — 2026-11-09
+
+First stable release. Every plugin release is now tested end to end against the live Supertext API (`.github/workflows/e2e.yml`).
+
 ### Added
 
 - **Translation review** on/off per language (Supertext app → *Language codes*, a checkbox next to each translated language's combo box): translations into a ticked language go through Supertext's review service (Supertext Localization Review), where customers and Supertext linguists correct them on the website with a Chrome extension; corrections come back into Magnolia with the next translation, and texts translated before keep their (reviewed) wording. Same API key, billing, languages and messages; other languages keep going directly to Supertext. New setting `reviewUrl` / `SUPERTEXT_REVIEW_URL` (defaults to Supertext's review service; empty turns review off for every language). English, German, French, Italian.

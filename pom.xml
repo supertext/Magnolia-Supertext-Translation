@@ -11,7 +11,7 @@
   -->
   <groupId>com.supertext</groupId>
   <artifactId>magnolia-supertext-translation</artifactId>
-  <version>0.1.0</version>
+  <version>1.0.0</version>
   <packaging>jar</packaging>
 
   <name>Supertext Translation for Magnolia</name>

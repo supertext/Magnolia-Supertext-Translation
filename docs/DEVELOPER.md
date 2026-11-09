@@ -252,6 +252,8 @@ Magnolia's own rules apply: the password must not be empty, and the user name (t
 
 Dependabot (`.github/dependabot.yml`) opens weekly pull requests: Maven minor and patch updates grouped into one, GitHub Actions in another, each major update on its own. Merge one when CI is green and it doesn't change what the module supports.
 
+`.github/workflows/dependabot-merge.yml` merges a minor or patch package update by itself once every other check on its pull request has passed (it waits up to 85 minutes and leaves the pull request alone if a check fails). GitHub Actions updates and majors stay for a person: the workflow's built-in token can't merge changes to workflow files, and a major needs a decision. Merges by the workflow don't start CI on `main`; the weekly health check looks at `main`.
+
 Everything Magnolia provides at runtime is ignored on purpose and updated by hand: the Magnolia artifacts (`info.magnolia*`: `magnolia.version` and the other Magnolia properties are the oldest Magnolia the module supports, see `docs/INSTALLATION.md` → Requirements), and Vaadin (`provided` scope, so it must be the version that Magnolia release ships). When you raise `magnolia.version`, also raise it in `demo/pom.xml` and set Vaadin to what `mvn dependency:tree -Dverbose -Dincludes=com.vaadin` shows Magnolia bringing.
 
 ## Code quality and security checks

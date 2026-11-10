@@ -12,7 +12,7 @@ For administrators who install and configure the module.
 
 ## Install
 
-The module is a single jar, `magnolia-supertext-translation-X.Y.Z.jar`, attached to every [GitHub release](https://github.com/Supertext/Magnolia-Supertext-Translation/releases). It needs no other libraries: everything it uses ships with Magnolia, and the [Supertext Java SDK](https://github.com/Supertext/Supertext-API-SDK-and-Guide) it talks to Supertext with is inside the jar (in its own package, so it doesn't clash with other software that uses the SDK).
+The module is a single jar, `magnolia-supertext-translation-X.Y.Z.jar`, attached to every [GitHub release](https://github.com/Supertext/Magnolia-Supertext-Translation/releases). It needs no other libraries: everything it uses ships with Magnolia, and the [Supertext Java SDK](https://github.com/Supertext/Supertext-API-SDK-Guide) it talks to Supertext with is inside the jar (in its own package, so it doesn't clash with other software that uses the SDK).
 
 **Maven webapp project** (the usual Magnolia setup): install the jar into your Maven repository and add it to the webapp's `pom.xml`:
 

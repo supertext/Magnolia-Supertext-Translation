@@ -1,5 +1,5 @@
 # Local development URLs.
-^https?://localhost(:[0-9]+)?(/|$)
+^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?(/|$)
 # The Railway demo is behind a login (HTTP 401 without credentials).
 ^https://magnolia-production-2b73\.up\.railway\.app
 # This repo's own files, linked absolutely from README.md so the links also work where the README is shown outside GitHub.

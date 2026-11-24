@@ -199,7 +199,9 @@ public class SupertextSettingsView implements View {
         Button save = new Button(t("supertext-translation.settings.save"), e -> save());
         save.addStyleName("commit");
         Button check = new Button(t("supertext-translation.settings.check"), e -> check());
-        HorizontalLayout buttons = new HorizontalLayout(save, check);
+        Button sendConfiguration = new Button(t("supertext-translation.settings.sendConfiguration"), e -> sendConfiguration());
+        sendConfiguration.setDescription(t("supertext-translation.settings.sendConfiguration.help"));
+        HorizontalLayout buttons = new HorizontalLayout(save, check, sendConfiguration);
         buttons.setSpacing(true);
         form.addComponent(buttons);
         form.addComponent(status);
@@ -309,6 +311,20 @@ public class SupertextSettingsView implements View {
         }
         ReporterResult result = reporting.testConnection();
         showCheck(result == null ? null : result.getCheck());
+    }
+
+    /** "Send configuration to Supertext": the installed modules and the site languages' Supertext codes, in one report. */
+    private void sendConfiguration() {
+        Set<String> siteLanguages = siteLanguages().all();
+        ReporterResult result = reporting.sendConfiguration(siteLanguages);
+        if (result == null && !reporting.enabled()) {
+            Notification.show(t("supertext-translation.settings.sendConfiguration.off"), Notification.Type.WARNING_MESSAGE);
+        } else if (result != null && result.isSent()) {
+            Notification.show(t("supertext-translation.settings.sendConfiguration.sent",
+                    String.valueOf(ReportingService.installedModules().size()), String.valueOf(siteLanguages.size())), Notification.Type.TRAY_NOTIFICATION);
+        } else {
+            Notification.show(t("supertext-translation.settings.sendConfiguration.failed"), Notification.Type.WARNING_MESSAGE);
+        }
     }
 
     private void showCheck(KeyCheck check) {

@@ -2,6 +2,7 @@ package com.supertext.magnolia.translation.reporting;
 
 import java.net.URI;
 import java.time.Clock;
+import java.util.List;
 import java.util.Locale;
 
 import org.slf4j.Logger;
@@ -9,9 +10,11 @@ import org.slf4j.LoggerFactory;
 
 import com.supertext.magnolia.translation.api.SupertextConnection;
 import com.supertext.magnolia.translation.api.SupertextService;
+import com.supertext.magnolia.translation.internal.pluginhealth.Extension;
 import com.supertext.magnolia.translation.internal.pluginhealth.InstallationReporter;
 import com.supertext.magnolia.translation.internal.pluginhealth.KeyCheck;
 import com.supertext.magnolia.translation.internal.pluginhealth.KeyChecker;
+import com.supertext.magnolia.translation.internal.pluginhealth.LanguageMapping;
 import com.supertext.magnolia.translation.internal.pluginhealth.PingResponse;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReporterResult;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReporterState;
@@ -91,6 +94,12 @@ public class VersionReports {
 
     /** The reporter for this installation. */
     public InstallationReporter reporter(Installation installation, SupertextConnection connection, boolean enabled) {
+        return reporter(installation, connection, enabled, null);
+    }
+
+    /** The reporter for this installation, with the language mapping for {@link #sendConfiguration}. */
+    public InstallationReporter reporter(Installation installation, SupertextConnection connection, boolean enabled,
+                                         List<LanguageMapping> languages) {
         String apiBaseUrl = apiBaseUrl(connection);
         String userAgent = PLUGIN_NAME + "/" + installation.pluginVersion();
         InstallationReporter.Builder builder = InstallationReporter.builder()
@@ -125,7 +134,32 @@ public class VersionReports {
         if (clock != null) {
             builder.clock(clock);
         }
+        if (languages != null) {
+            builder.languages(() -> languages);
+        }
         return builder.build();
+    }
+
+    /**
+     * "Send configuration to Supertext": one {@code extensions} report with the installed modules and the language
+     * mapping, sent now (also within the hour after a failed report). Nothing with reports off. Never throws.
+     *
+     * @return the result, or null when it couldn't run (no site URL, storage failed)
+     */
+    public synchronized ReporterResult sendConfiguration(Installation installation, SupertextConnection connection, boolean enabled,
+                                                         List<Extension> extensions, List<LanguageMapping> languages) {
+        if (installation == null || installation.siteUrl() == null) {
+            return null;
+        }
+        try {
+            ReporterResult result = reporter(installation, connection, enabled, languages)
+                    .sendExtensions(ReporterState.fromJson(load()), extensions);
+            store.save(result.getState().toJson());
+            return result;
+        } catch (Exception e) {
+            log.debug("Supertext: configuration not sent: {}", e.toString());
+            return null;
+        }
     }
 
     /**

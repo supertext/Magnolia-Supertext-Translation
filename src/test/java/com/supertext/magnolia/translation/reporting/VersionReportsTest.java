@@ -18,6 +18,8 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 import com.supertext.magnolia.translation.api.SupertextConnection;
+import com.supertext.magnolia.translation.internal.pluginhealth.Extension;
+import com.supertext.magnolia.translation.internal.pluginhealth.LanguageMapping;
 import com.supertext.magnolia.translation.internal.pluginhealth.PingResponse;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReportEvent;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReporterResult;
@@ -164,7 +166,33 @@ class VersionReportsTest {
         ReporterResult result = reports.run(VersionReports.Action.ON_REQUEST, INSTALLATION, CONNECTION, true, 0);
         assertNull(result.getEvent(), "no new installed report");
         assertEquals(List.of(), requests, "same key: not checked again");
-        assertEquals(before, stored, "same JSON");
+        // Plugin Health 0.2+ adds keyChecks and reportedKeyStatuses (null with one key); everything else is kept.
+        assertEquals(before.substring(0, before.length() - 1) + ",\"keyChecks\":null,\"reportedKeyStatuses\":null}", stored, "same JSON");
+    }
+
+    @Test
+    void sendConfigurationSendsModulesAndTheLanguageMappingNow() {
+        centerDown = true;
+        reports.run(VersionReports.Action.ON_REQUEST, INSTALLATION, CONNECTION, true, 0);
+        centerDown = false;
+        requests.clear();
+        ReporterResult result = reports.sendConfiguration(INSTALLATION, CONNECTION, true,
+                List.of(new Extension("acme-forms", "2.1.0", true, "module")),
+                List.of(new LanguageMapping("en", "en-US"), new LanguageMapping("de_CH", "de-CH"), new LanguageMapping("en_IE", null)));
+        assertEquals(ReportEvent.EXTENSIONS, result.getEvent());
+        assertTrue(result.isSent(), "also within the hour after a failed report");
+        String body = reportBodies().get(0);
+        assertTrue(body.contains("\"event\":\"extensions\""), body);
+        assertTrue(body.contains("{\"name\":\"acme-forms\",\"version\":\"2.1.0\",\"active\":true,\"type\":\"module\"}"), body);
+        assertTrue(body.contains("{\"code\":\"de_CH\",\"supertext\":\"de-CH\"}"), body);
+        assertTrue(body.contains("{\"code\":\"en_IE\",\"supertext\":null}"), body);
+    }
+
+    @Test
+    void sendConfigurationSendsNothingWithReportsOff() {
+        ReporterResult result = reports.sendConfiguration(INSTALLATION, CONNECTION, false, List.of(new Extension("a", "1")), List.of());
+        assertFalse(result.isSent());
+        assertEquals(List.of(), reportBodies());
     }
 
     @Test

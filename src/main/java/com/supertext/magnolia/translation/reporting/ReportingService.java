@@ -1,5 +1,9 @@
 package com.supertext.magnolia.translation.reporting;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -21,8 +25,11 @@ import info.magnolia.module.model.ModuleDefinition;
 import info.magnolia.objectfactory.Components;
 
 import com.supertext.magnolia.translation.SupertextSettings;
+import com.supertext.magnolia.translation.api.SupertextException;
 import com.supertext.magnolia.translation.api.SupertextService;
+import com.supertext.magnolia.translation.internal.pluginhealth.Extension;
 import com.supertext.magnolia.translation.internal.pluginhealth.KeyCheck;
+import com.supertext.magnolia.translation.internal.pluginhealth.LanguageMapping;
 import com.supertext.magnolia.translation.internal.pluginhealth.PingResponse;
 import com.supertext.magnolia.translation.internal.pluginhealth.ReporterResult;
 
@@ -79,6 +86,56 @@ public class ReportingService {
     /** Supertext rejected the key during a translation (HTTP 401/403): in the background. */
     public void authenticationFailed(Integer httpStatus) {
         inBackground(VersionReports.Action.AUTHENTICATION_FAILED, httpStatus == null ? 401 : httpStatus);
+    }
+
+    /**
+     * "Send configuration to Supertext" (Supertext app): the installed modules that aren't Magnolia's own and every
+     * site language with its Supertext code, in one {@code extensions} report. Null with reports off.
+     *
+     * @param languages the site languages (Magnolia locales, e.g. {@code de_CH})
+     */
+    public ReporterResult sendConfiguration(Collection<String> languages) {
+        if (!enabled()) {
+            return null;
+        }
+        List<LanguageMapping> mapping = new ArrayList<>();
+        com.supertext.magnolia.translation.api.LanguageMapping codes = settings.languageMapping();
+        for (String language : languages) {
+            String code;
+            try {
+                code = codes.target(language);
+            } catch (SupertextException | RuntimeException e) {
+                code = null;
+            }
+            mapping.add(new LanguageMapping(language, code));
+        }
+        List<Extension> extensions = installedModules();
+        VersionReports.Installation installation = installation();
+        try {
+            // Like "Check connection": in the request, which stores the state as the user (see run()).
+            return reports.sendConfiguration(installation, settings.connection(), true, extensions, mapping);
+        } catch (RuntimeException e) {
+            log.debug("Supertext: configuration not sent: {}", e.toString());
+            return null;
+        }
+    }
+
+    /** The modules with a module class outside {@code info.magnolia} (i.e. not Magnolia's own), by name. */
+    public static List<Extension> installedModules() {
+        List<Extension> out = new ArrayList<>();
+        try {
+            for (ModuleDefinition module : Components.getComponent(ModuleRegistry.class).getModuleDefinitions()) {
+                String className = module.getClassName();
+                if (className == null || className.isBlank() || className.startsWith("info.magnolia.")) {
+                    continue;
+                }
+                out.add(new Extension(module.getName(), module.getVersion() == null ? null : module.getVersion().toString(), true, "module"));
+            }
+        } catch (RuntimeException e) {
+            // A report without modules still has the languages.
+        }
+        out.sort(Comparator.comparing(Extension::name));
+        return out;
     }
 
     /** The latest key check, or null. */

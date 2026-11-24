@@ -6,10 +6,10 @@
  *   DEMO_EDITOR_EMAIL=… DEMO_EDITOR_PASSWORD=… DEMO_ADMIN_EMAIL=… DEMO_ADMIN_PASSWORD=… \
  *   node screenshots.mjs            # writes ../../docs/images/*.png
  *
- * The demo must call stand-in.mjs (SUPERTEXT_API_ENDPOINT=http://host.docker.internal:8765/v1/,
- * without STAND_IN_PREFIX) so the German result is a real translation of the sample page, and
- * run without SUPERTEXT_API_KEY: the script stores a dummy key in the Supertext app like an
- * administrator would (the stand-in accepts any key). 1× scale, cropped to the relevant part.
+ * The demo runs without SUPERTEXT_API_KEY: the script stores the key in the Supertext app like an
+ * administrator would: DOCS_API_KEY (CI: the secret SUPERTEXT_API_KEY, so the German result is a real
+ * Supertext translation), else a dummy key, with the demo calling stand-in.mjs
+ * (SUPERTEXT_API_ENDPOINT=http://host.docker.internal:8765/v1/, without STAND_IN_PREFIX). 1× scale, cropped to the relevant part.
  * See docs/DEVELOPER.md -> Docs screenshots.
  */
 import { chromium } from 'playwright';
@@ -69,7 +69,7 @@ await page.waitForSelector('.supertext-settings', { timeout: 120000 }); // the f
 await page.waitForTimeout(1500);
 const keyField = page.locator('.supertext-settings input[type=password]');
 if (await keyField.isEnabled() && !(await keyField.getAttribute('placeholder'))) {
-  await keyField.fill('Supertext-Auth-Key docs-screenshots');
+  await keyField.fill(process.env.DOCS_API_KEY || 'Supertext-Auth-Key docs-screenshots');
   await page.getByText('Save', { exact: true }).click();
   await page.locator('.v-Notification').first().waitFor();
 }
@@ -93,7 +93,7 @@ await shot(page, 'translate-dialog.png', { clip: await box(dialog, 0) });
 await dialog.locator('.v-select-optiongroup label', { hasText: '· fr_CH' }).click(); // German only
 await dialog.getByRole('button', { name: 'Translate', exact: true }).click();
 let note = page.locator('.v-Notification').first();
-await note.waitFor({ timeout: 120000 });
+await note.waitFor({ timeout: 300000 });
 await page.waitForTimeout(500);
 await shot(page, 'translate-done.png', { clip: await box(note, 24) });
 await dismissNotifications(page);
@@ -103,7 +103,7 @@ dialog = await openTranslateDialog(page);
 await fillTranslateDialog(dialog, ['de_CH']);
 await dialog.getByRole('button', { name: 'Translate', exact: true }).click();
 note = page.locator('.v-Notification').first();
-await note.waitFor({ timeout: 120000 });
+await note.waitFor({ timeout: 300000 });
 await page.waitForTimeout(500);
 await shot(page, 'translate-kept.png', { clip: await box(note, 24) });
 await dismissNotifications(page);

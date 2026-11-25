@@ -11,7 +11,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Changed
 
 - The screenshots in the guides show real Supertext translations (the E2E workflow takes them with the live API; version reports still go to the stand-in).
-- Tested with Magnolia 6.4.12 Community Edition (the demo now runs it; was 6.4.11-sp1). The module still compiles against 6.4.10, the oldest version it supports.
+- Tested with Magnolia 6.4.12-sp1 Community Edition (the demo now runs it; was 6.4.11-sp1). The module still compiles against 6.4.10, the oldest version it supports.
 
 ## 1.0.0 — 2026-11-09
 

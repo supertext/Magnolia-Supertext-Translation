@@ -83,7 +83,7 @@ Supertext's answer, if any, is shown in brackets after the message. Endpoint pro
 
 ### Language codes
 
-Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages`, `spec/languages.json` in the SDK repo): 28 bare sources (`en`, `de`); 37 targets in one exact form each, regional for German, English, French, Italian and Portuguese (`de-CH`, `en-US`, `pt-BR`), with a script for Chinese and Serbian (`zh-Hans`, `sr-Latn`), Swiss German dialects (`gsw-u-sd-chzh`), bare for the others (`es`, `nl`, `sl`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR`; formal/informal for a target without it (`en-*`, `rm`, `sq`, `sr-*`, `gsw-*`) is HTTP 400 `FEATURE_ERROR` (`unsupported_feature`).
+Supertext accepts exactly the codes its `GET features` lists (the SDK's `Languages`, `spec/languages.json` in the SDK repo): 32 bare sources (`en`, `de`); 41 targets in one exact form each, regional for German, English, French, Italian and Portuguese (`de-CH`, `en-US`, `pt-BR`), with a script for Chinese and Serbian (`zh-Hans`, `sr-Latn`), Swiss German dialects (`gsw-u-sd-chzh`), bare for the others (`es`, `nl`, `sl`). Anything else is HTTP 404 `INVALID_LANGUAGE_PAIR`; formal/informal for a target without it (`en-*`, `rm`, `sq`, `sr-*`, `gsw-*`) is HTTP 400 `FEATURE_ERROR` (`unsupported_feature`).
 
 **Nothing guessed beyond the SDK's obvious defaults.** `SupertextSettings.targetLanguageCode`/`sourceLanguageCode` pass the Magnolia locale (`Locale.toString()`, e.g. `de_CH`) and the *Language codes* choices (`api/LanguageMapping`, from the `languageCodes` node) to the SDK (`SupertextService.targetCode`/`sourceCode` → `Languages.target`/`source`):
 

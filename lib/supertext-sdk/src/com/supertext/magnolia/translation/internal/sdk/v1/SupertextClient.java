@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -429,6 +430,52 @@ public final class SupertextClient {
     }
 
     // ---------------------------------------------------------------- HTTP
+
+    /** All pending corrections; see {@link #pendingCorrections(String, String, Politeness)}. */
+    public List<Correction> pendingCorrections() throws InterruptedException {
+        return pendingCorrections(null, null, null);
+    }
+
+    /**
+     * Corrections reviewers made that the integration hasn't written into the CMS yet (Supertext Localization
+     * Review; spec/corrections.json). Only the review service answers this: against Supertext's API it throws
+     * {@link ErrorCode#NOT_FOUND}. Follows all pages. {@link Correction#getSegmentId()} is the
+     * {@code data-st-id} the integration sent, so this is useful when the integration builds its documents with
+     * its own ids ({@link #translateHtml(String, String)}).
+     *
+     * @param targetLang only this target language; {@code null}: all
+     * @param sourceLang only this source language; {@code null}: all
+     * @param politeness only this politeness; {@code null}: all
+     */
+    public List<Correction> pendingCorrections(String targetLang, String sourceLang, Politeness politeness)
+            throws InterruptedException {
+        List<Correction> all = new ArrayList<>();
+        String after = null;
+        for (int page = 0; page < Corrections.MAX_PAGES; page++) {
+            Corrections.Page result = Corrections.parsePage(
+                    request("GET", Corrections.path(targetLang, sourceLang, politeness, after), null, null).getBody());
+            all.addAll(result.corrections);
+            if (result.nextAfter == null || result.nextAfter.equals(after)) {
+                break;
+            }
+            after = result.nextAfter;
+        }
+        return Collections.unmodifiableList(all);
+    }
+
+    /**
+     * Tells the review service these corrections are in the CMS now; returns how many it accepted. Only the
+     * fetched {@link Correction#getVersion()} counts: a newer correction stays pending.
+     */
+    public int acknowledgeCorrections(List<Correction> corrections) throws InterruptedException {
+        int total = 0;
+        for (int i = 0; i < corrections.size(); i += Corrections.ACKNOWLEDGE_BATCH_SIZE) {
+            String body = Corrections.acknowledgeBody(corrections.subList(i, Math.min(corrections.size(), i + Corrections.ACKNOWLEDGE_BATCH_SIZE)));
+            total += Corrections.acknowledgedCount(request("POST", "review/corrections/acknowledge",
+                    body.getBytes(StandardCharsets.UTF_8), "application/json").getBody());
+        }
+        return total;
+    }
 
     private Transport.Response request(String method, String path, byte[] body, String contentType) throws InterruptedException {
         return request(method, path, body, contentType, requestTimeout);

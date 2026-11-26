@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Indonesian, Romanian, Thai and Vietnamese (`id`, `ro`, `th`, `vi`) can be chosen as Supertext languages, all with formal and informal address (Supertext SDK 0.7.0).
 - **Send configuration to Supertext** in the Supertext app: sends Supertext the installed modules (name, version; Magnolia's own are left out) and the Supertext language of each site language, so Supertext support can help better. Nothing is sent while version information is off. All four interface languages. Supertext Plugin Health 0.4.0.
 
 ### Changed
